@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="洗濯予報">
+<meta name="theme-color" content="#2b6cb0">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<title>洗濯物干し予報</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f6f8; --card:#ffffff; --text:#1d2430; --muted:#667085; --line:#e3e7ec;
+  --good:#1f9d55; --ok:#d4a017; --bad:#d64545; --accent:#2b6cb0; --accent-bg:#e8f1fb;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#12161c; --card:#1b2129; --text:#e6e9ee; --muted:#9aa4b2; --line:#2c343f;
+        --good:#3ccf7d; --ok:#f0c040; --bad:#f06c6c; --accent:#6aa8ec; --accent-bg:#1e2c3d;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:"Yu Gothic UI","Meiryo",system-ui,sans-serif;line-height:1.6}
+main{max-width:860px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:30px;margin:0 0 4px;font-family:"Mochiy Pop One","HGP創英角ﾎﾟｯﾌﾟ体","Yu Gothic UI",sans-serif;font-weight:normal;
+  letter-spacing:1px;line-height:1.3}
+/* 1文字ずつ色を変えて、交互に少し傾けて弾むように */
+h1 .pop span{display:inline-block;text-shadow:2px 2px 0 rgba(0,0,0,.12)}
+h1 .pop span:nth-child(odd){transform:rotate(-6deg) translateY(1px)}
+h1 .pop span:nth-child(even){transform:rotate(5deg) translateY(-2px)}
+.sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+.tabs{display:flex;gap:8px;margin-bottom:16px}
+.tabs button{flex:1;padding:10px;border:1px solid var(--line);background:var(--card);color:var(--text);
+  border-radius:10px;font-size:15px;cursor:pointer;font-family:inherit}
+.tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:bold}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.hero{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:600px){.hero{grid-template-columns:1fr}}
+.label{font-size:13px;color:var(--muted)}
+.big{font-size:40px;font-weight:bold;line-height:1.2}
+.verdict{font-size:20px;font-weight:bold;margin-top:4px}
+.why{font-size:13px;color:var(--muted);margin-top:6px}
+.spin .big{color:var(--accent)}
+.spin{background:var(--accent-bg)}
+.summary{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:14px}
+.summary b{font-size:16px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:6px 4px;text-align:center;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:normal;font-size:12px}
+tr.best td{background:var(--accent-bg)}
+.bar{height:10px;border-radius:5px;background:var(--line);overflow:hidden;min-width:60px}
+.bar i{display:block;height:100%}
+.note{font-size:12px;color:var(--muted)}
+.err{color:var(--bad);font-weight:bold}
+.tablewrap{overflow-x:auto}
+.loc{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.loc select,.loc input,.loc button{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);
+  color:var(--text);font-size:14px;font-family:inherit}
+.loc input{flex:1;min-width:140px}
+.loc button{cursor:pointer}
+#hits{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 12px}
+#hits button{padding:4px 10px;border:1px solid var(--accent);border-radius:999px;background:var(--accent-bg);color:var(--text);
+  font-size:13px;cursor:pointer;font-family:inherit}
+.fab{display:grid;grid-template-columns:auto 1fr;gap:0;margin-top:6px}
+.fab .k{font-size:15px;font-weight:bold;padding-right:14px !important}
+.fab .k small{display:block;font-size:11px;font-weight:normal;color:var(--muted)}
+.fab .v{font-size:26px;font-weight:bold;line-height:1.3}
+.fab .v small{font-size:12px;font-weight:normal;color:var(--muted)}
+.startsel{margin-top:8px;font-size:14px}
+.startsel select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);
+  font-size:14px;font-family:inherit}
+.notify{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;border:0 !important}
+.notify input,.notify button{padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);
+  font-size:13px;font-family:inherit}
+.notify input{flex:1 1 45%;min-width:170px}
+.notify button{cursor:pointer;background:var(--accent);border-color:var(--accent);color:#fff;font-weight:bold}
+.notify .note{width:100%}
+.fab > .k,.fab > .v{padding:6px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}  /* 行ごとに高さと中央をそろえる */
+</style>
+</head>
+<body>
+<main>
+  <h1>👕 <span class="pop"><span style="color:#ff5c8a">洗</span><span style="color:#ff8a3d">濯</span><span style="color:#f2b705">物</span><span style="color:#2ec27e">干</span><span style="color:#2aa7e0">し</span><span style="color:#7b61ff">予</span><span style="color:#ff5c8a">報</span></span> ☀️</h1>
+  <div class="sub"><b id="place">新宿区荒木町</b> ／ 天気・気温・湿度・風・日差しから干し時間と脱水時間を判定 <span id="updated"></span></div>
+
+  <div class="loc">
+    <select id="preset"></select>
+    <input id="q" placeholder="郵便番号 または 地名（例：160-0007、横浜）">
+    <button id="search">🔍 検索</button>
+    <button id="here">📍 現在地</button>
+  </div>
+  <div id="hits"></div>
+
+  <div class="tabs">
+    <button id="t0">今日</button>
+    <button id="t1">明日</button>
+  </div>
+
+  <div id="out"><div class="card">天気予報を取得中…</div></div>
+
+  <div class="note">
+    データ: Open-Meteo（気象庁モデル等）。判定の目安: 乾きやすさ指数＝飽差（空気がどれだけ水分を吸えるか）・日射・風・気温から計算し、降水確率で減点。<br>
+    脱水時間: 外干しでよく乾く日は <b>8分</b>（シワを抑える）、乾きにくい日・部屋干しの日は <b>12分</b>（水分を多く飛ばして生乾きを防ぐ）。
+  </div>
+</main>
+
+<script>
+const PRESETS = [
+  ["新宿区荒木町",35.6905,139.7215],["札幌",43.0642,141.3469],["仙台",38.2682,140.8694],["東京駅",35.6812,139.7671],
+  ["横浜",35.4437,139.6380],["さいたま",35.8617,139.6455],["千葉",35.6074,140.1065],["名古屋",35.1815,136.9066],
+  ["京都",35.0116,135.7681],["大阪",34.6937,135.5023],["神戸",34.6901,135.1955],["広島",34.3853,132.4553],
+  ["福岡",33.5902,130.4017],["那覇",26.2124,127.6809]];
+let LOC = {name:"新宿区荒木町", lat:35.6905, lon:139.7215};
+try { const v = JSON.parse(localStorage.getItem("sentaku-loc")); if (v && v.lat) LOC = v; } catch(e){}
+const forecastURL = () => `https://api.open-meteo.com/v1/forecast?latitude=${LOC.lat}&longitude=${LOC.lon}` +
+  `&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,shortwave_radiation,vapour_pressure_deficit` +
+  `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset` +
+  `&wind_speed_unit=ms&timezone=Asia%2FTokyo&past_days=1&forecast_days=3`;
+
+const WX = c => c===0?"☀️ 快晴":c<=2?"🌤 晴れ":c===3?"☁️ くもり":c<=48?"🌫 霧":c<=57?"🌦 霧雨":c<=67?"🌧 雨":c<=77?"🌨 雪":c<=82?"🌧 にわか雨":c<=86?"🌨 にわか雪":"⛈ 雷雨";
+
+const rainy = h => h.pp >= 60 || h.pr >= 0.3 || h.code >= 51;
+// 時刻の表示（前日の20〜23時は -4〜-1 で持つ）
+const lab = hr => hr < 0 ? `前日${hr+24}時` : `${hr}時`;
+// 1時間ごとの乾きやすさ指数 (0〜100)
+function score(h){
+  if (rainy(h)) return 0;                                               // 雨
+  let s = Math.min(h.vpd / 1.6, 1) * 50                                // 飽差
+        + Math.min(h.sw / 600, 1) * 25                                  // 日射
+        + Math.min(h.wind / 3, 1) * 15                                  // 風
+        + Math.min(Math.max((h.t - 5) / 20, 0), 1) * 10;                // 気温
+  if (h.wind > 10) s -= 15;                                             // 強風で飛ばされる
+  s -= Math.max(h.pp - 20, 0) * 0.6;                                    // 降水確率
+  return Math.max(0, Math.min(100, Math.round(s)));
+}
+const color = s => s>=60?"var(--good)":s>=40?"var(--ok)":"var(--bad)";
+const mark  = s => s>=60?"◎":s>=40?"○":s>=20?"△":"×";
+
+const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
+let startHr = null, notifyItems = [];   // 干し始める時刻（null＝おすすめ）
+let data, day = (new Date().getHours() < 5) ? 0 : 1;
+
+function render(){
+  document.getElementById("t0").classList.toggle("on", day===0);
+  document.getElementById("t1").classList.toggle("on", day===1);
+  // past_days=1 なので daily の [0] は昨日。今日=1、明日=2
+  const H = data.hourly, D = data.daily, di = day + 1, date = D.time[di], prev = D.time[day];
+  const hours = [], allH = [];   // hours: 当日6〜18時（判定用）、allH: 前日20時〜当日18時（干し始めの選択用）
+  H.time.forEach((t,i)=>{
+    let hr = +t.slice(11,13);
+    if (t.startsWith(prev) && hr >= 20) hr -= 24;
+    else if (!t.startsWith(date) || hr > 18) return;
+    const h = {hr, t:H.temperature_2m[i], rh:H.relative_humidity_2m[i], pp:H.precipitation_probability[i]??0,
+      pr:H.precipitation[i]??0, code:H.weather_code[i], wind:H.wind_speed_10m[i], sw:H.shortwave_radiation[i],
+      vpd:H.vapour_pressure_deficit[i]};
+    h.s = score(h); allH.push(h); if (hr >= 6) hours.push(h);
+  });
+
+  // 7〜17時で、平均スコアが最大になる連続区間（3時間以上）を探す
+  const cand = hours.filter(h=>h.hr>=7 && h.hr<=17);
+  let best=null;
+  for (let a=0;a<cand.length;a++){
+    for (let b=a+2;b<cand.length;b++){
+      const seg=cand.slice(a,b+1);
+      if (seg.some(h=>h.s<25)) break;
+      const avg=seg.reduce((x,h)=>x+h.s,0)/seg.length;
+      const val=avg + seg.length*2;   // 長く干せる方を少し優遇
+      if(!best||val>best.val) best={a:seg[0].hr,b:seg[seg.length-1].hr+1,avg,val};
+    }
+  }
+  const core = hours.filter(h=>h.hr>=9 && h.hr<=15);
+  const dayAvg = Math.round(core.reduce((x,h)=>x+h.s,0)/core.length);
+  const maxPP = Math.max(...hours.map(h=>h.pp));
+  const avgRH = Math.round(core.reduce((x,h)=>x+h.rh,0)/core.length);
+  const avgT  = (core.reduce((x,h)=>x+h.t,0)/core.length).toFixed(1);
+  const rainHrs = hours.filter(h=>h.s===0).map(h=>h.hr);
+
+  const outdoor = best && best.avg >= 40;
+
+  // 干し始め：選んだ時刻（未選択ならおすすめ区間の開始）。取り込み期限：おすすめならその区間の終わり、
+  // 自分で選んだ場合は雨・夕方などで乾かなくなる時刻（指数15未満）
+  const st = (outdoor && startHr !== null) ? startHr : best?.a;
+  let end = 18;
+  if (outdoor && startHr === null) end = best.b;
+  else if (outdoor) { const stop = allH.find(h=>h.hr>=st && (rainy(h) || (h.hr>=12 && h.s<15))); if (stop) end = stop.hr; }
+
+  // 生地の厚さ別：干し始め(st)から乾きやすさ指数を積算し、必要量に達した時刻＝取り込み時刻
+  const FAB = [["👕 薄手","Tシャツ・下着・シャツ",150],["👖 普通","タオル・パジャマ・ズボン",250],["🧥 厚手","ジーンズ・パーカー・バスタオル",400],["🧦 小物","靴下・ハンカチ・ハンドタオル",100]];
+  const half = x => { const m = Math.ceil(x*2)/2, hh = Math.floor(m); return lab(hh) + (m>hh ? "半" : ""); };
+  const takeIn = need => {
+    let acc = 0;
+    for (const h of allH){
+      if (h.hr < st || h.hr >= end) continue;
+      if (h.s > 0 && acc + h.s >= need) return h.hr + (need-acc)/h.s;
+      acc += h.s;
+    }
+    return null;   // 時間内に乾ききらない
+  };
+  const spin = (outdoor && dayAvg >= 55 && avgRH < 70) ? 8 : 12;
+
+  const d = new Date(date+"T00:00:00");
+  const ds = `${d.getMonth()+1}月${d.getDate()}日（${"日月火水木金土"[d.getDay()]}）`;
+  let verdict, when, reason;
+  if (!outdoor){
+    verdict = "部屋干しがおすすめ";
+    when = "—";
+    reason = rainHrs.length ? `${rainHrs[0]}時ごろから雨の予報（降水確率 最大${maxPP}%）` : `湿度が高く乾きにくい（日中平均 ${avgRH}%）`;
+  } else {
+    verdict = best.avg>=60 ? "外干し日和！" : "外干しOK（やや乾きにくい）";
+    // メール通知用：取り込み時刻（30分単位）の日時ごとに生地をまとめる
+    const at = x => { const m = Math.ceil(x*2)/2, d0 = new Date(date+"T00:00:00"); d0.setMinutes(m*60);
+      const z = n => String(n).padStart(2,"0");
+      return `${d0.getFullYear()}-${z(d0.getMonth()+1)}-${z(d0.getDate())}T${z(d0.getHours())}:${z(d0.getMinutes())}`; };
+    const groups = {}, plan = [];
+    when = [...FAB].sort((x,y)=>x[2]-y[2]).map(([k,ex,need])=>{
+      const t = takeIn(need);
+      const key = at(t===null ? end : t), name = k.split(" ")[1];
+      (groups[key] ||= []).push(`${k}（${ex}）${t===null?" ※乾ききらないので部屋干しで仕上げ":""}`);
+      plan.push(`${k}：${t===null ? `${end}時（乾ききらない）` : half(t)+"ごろ"}`);
+      groups[key].names = (groups[key].names||[]).concat(name);
+      const v = t===null ? `${end}時 <small>乾ききらない→部屋干しで仕上げ</small>` : `${half(t)}ごろ`;
+      return `<div class="k">${k}<small>${ex}</small></div><div class="v">${v}</div>`;
+    }).join("");
+    reason = st >= end
+      ? `${lab(st)}からでは乾きにくい時間帯です。おすすめは ${best.a}〜${best.b}時`
+      : `${lab(st)}に干した場合の目安。${end}時以降は乾きにくくなるので、遅くともそれまでに取り込んでください` +
+        (startHr === null ? `（乾きやすさ ${Math.round(best.avg)}点）` : `（おすすめは ${best.a}〜${best.b}時）`);
+    // 干し始めの選択は一番上に
+    when = `<div class="startsel" style="grid-column:1/-1;margin:0 0 6px">干し始め：<select id="start">` +
+      `<option value="">おすすめ（${best.a}時）</option>` +
+      Array.from({length:22},(_,i)=>i-4).map(hh=>`<option value="${hh}" ${startHr===hh?"selected":""}>${lab(hh)}</option>`).join("") +
+      `</select></div>` + when;
+    notifyItems = Object.keys(groups).sort().map(key => ({
+      at: key,
+      subject: `🧺 洗濯物を取り込む時間です（${groups[key].names.join("・")}）`,
+      body: `${LOC.name}　${ds}\n${lab(st)}に干した洗濯物の取り込み時間です。\n\n▼ 今取り込むもの\n${groups[key].join("\n")}\n\n▼ この日の予定\n${plan.join("\n")}\n\n― 洗濯物干し予報`
+    }));
+    // 通知先は最大6件（このブラウザに保存）
+    let mails = []; try { mails = JSON.parse(localStorage.getItem("sentaku-mails") || "[]"); } catch(e){}
+    // メール通知はこのPCのOutlookで送るので、スマホでは出さない
+    if (!IS_MOBILE) when += `<div class="notify"><div class="note" style="margin:0">通知先メールアドレス（最大6件）</div>` +
+      [0,1,2,3,4,5].map(i=>`<input class="mail" type="email" placeholder="メールアドレス${i+1}" value="${(mails[i]||"").replace(/"/g,"&quot;")}">`).join("") +
+      `<button id="notify">📧 取り込み時刻にメールで知らせる</button>` +
+      `<div class="note">このパソコンのOutlookから送ります。初回はブラウザに「開きますか？」と聞かれるので「開く」を選んでください。</div></div>`;
+    if (maxPP>=40) reason += `（降水確率 最大${maxPP}%、念のため注意）`;
+  }
+  const spinWhy = spin===8
+    ? "よく乾く日なので短め脱水でOK。シワが少なく仕上がります"
+    : (outdoor ? "乾きにくい条件なので長めに脱水して乾燥時間を短縮" : "部屋干しなので長めに脱水して生乾き臭を防止");
+
+
+  document.getElementById("out").innerHTML = `
+  <div class="card summary">
+    <span><b>${ds}</b></span>
+    <span>${WX(D.weather_code[di])}</span>
+    <span>気温 ${D.temperature_2m_min[di]}〜${D.temperature_2m_max[di]}℃</span>
+    <span>日中湿度 平均${avgRH}%</span>
+    <span>降水確率 最大${D.precipitation_probability_max[di]??maxPP}%</span>
+  </div>
+  <div class="hero">
+    <div class="card">
+      <div class="label">取り込む時間帯</div>
+      <div class="verdict">${verdict}</div>
+      ${outdoor ? `<div class="fab">${when}</div>` : `<div class="big" style="color:var(--bad)">${when}</div>`}
+      <div class="why">${reason}</div>
+    </div>
+    <div class="card spin">
+      <div class="label">脱水時間</div>
+      <div class="big">${spin}分</div>
+      <div class="verdict">${spin===8?"短め（8分）":"長め（12分）"}</div>
+      <div class="why">${spinWhy}</div>
+    </div>
+  </div>
+  <div class="card tablewrap">
+    <div class="label" style="margin-bottom:6px">時間ごとの乾きやすさ（◎よく乾く ○乾く △乾きにくい ×干せない）</div>
+    <table>
+      <tr><th>時刻</th><th>天気</th><th>気温</th><th>湿度</th><th>降水</th><th>風</th><th>判定</th><th style="width:30%">乾きやすさ</th></tr>
+      ${allH.filter(h=>h.hr>=Math.min(6, outdoor?st:6)).map(h=>`<tr class="${outdoor&&h.hr>=best.a&&h.hr<best.b?'best':''}">
+        <td>${lab(h.hr)}</td><td>${WX(h.code).split(" ")[0]}</td><td>${h.t.toFixed(0)}℃</td><td>${h.rh}%</td>
+        <td>${h.pp}%</td><td>${h.wind.toFixed(1)}m</td>
+        <td style="color:${color(h.s)};font-weight:bold">${mark(h.s)}</td>
+        <td><div class="bar"><i style="width:${h.s}%;background:${color(h.s)}"></i></div></td></tr>`).join("")}
+    </table>
+  </div>`;
+  const sel = document.getElementById("start");
+  if (sel) sel.onchange = e => { startHr = e.target.value === "" ? null : +e.target.value; render(); };
+  const nb = document.getElementById("notify");
+  if (nb) nb.onclick = () => {
+    const to = [...document.querySelectorAll(".mail")].map(e=>e.value.trim()).filter(Boolean);
+    const bad = to.filter(m => !/^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/.test(m));
+    if (!to.length) { alert("メールアドレスを入力してください"); return; }
+    if (bad.length) { alert("メールアドレスが正しくありません：" + bad.join("、")); return; }
+    try { localStorage.setItem("sentaku-mails", JSON.stringify(to)); } catch(e){}
+    const items = notifyItems.filter(it => new Date(it.at) > new Date());
+    if (!items.length) { alert("取り込み時刻はもう過ぎています"); return; }
+    const bytes = new TextEncoder().encode(JSON.stringify({to, items}));
+    let bin = ""; bytes.forEach(b => bin += String.fromCharCode(b));
+    location.href = "sentaku-mail:" + btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+  };
+}
+
+document.getElementById("t0").onclick=()=>{day=0;render()};
+document.getElementById("t1").onclick=()=>{day=1;render()};
+
+// ---- 地域の選択 ----
+const $ = id => document.getElementById(id);
+function setLoc(name, lat, lon){
+  LOC = {name, lat:+(+lat).toFixed(4), lon:+(+lon).toFixed(4)};
+  try { localStorage.setItem("sentaku-loc", JSON.stringify(LOC)); } catch(e){}
+  $("hits").innerHTML = "";
+  load();
+}
+$("preset").innerHTML = `<option value="">地域を選ぶ…</option>` +
+  PRESETS.map((p,i)=>`<option value="${i}">${p[0]}</option>`).join("");
+$("preset").onchange = e => { const p = PRESETS[e.target.value]; if (p) setLoc(...p); };
+function searchZip(zip){
+  $("hits").textContent = "郵便番号を検索中…";
+  fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${zip}`).then(r=>r.json()).then(j=>{
+    const a = (j.results||[])[0];
+    if (!a) throw new Error("この郵便番号は見つかりませんでした");
+    const addr = a.address1 + a.address2 + a.address3;
+    // 住所 → 緯度経度（国土地理院）
+    return fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(addr)}`).then(r=>r.json()).then(g=>{
+      if (!g.length) throw new Error("住所の位置が見つかりませんでした");
+      const [lon, lat] = g[0].geometry.coordinates;
+      setLoc(`〒${zip.slice(0,3)}-${zip.slice(3)} ${a.address2}${a.address3}`, lat, lon);
+    });
+  }).catch(e=>{ $("hits").textContent = e.message || "検索できませんでした"; });
+}
+function search(){
+  let q = $("q").value.trim().replace(/[０-９－ー]/g, c => c==="－"||c==="ー" ? "-" : String.fromCharCode(c.charCodeAt(0)-0xFEE0));
+  if (!q) return;
+  const zip = q.replace(/^〒/, "").replace(/-/g, "");
+  if (/^\d{7}$/.test(zip)) return searchZip(zip);
+  $("hits").textContent = "検索中…";
+  fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=ja&countryCode=JP`)
+    .then(r=>r.json()).then(j=>{
+      const rs = j.results || [];
+      if (!rs.length){ $("hits").textContent = "見つかりませんでした（市区町村名で試してください）"; return; }
+      $("hits").innerHTML = rs.map((r,i)=>`<button data-i="${i}">${r.name}${r.admin1&&r.admin1!==r.name?"（"+r.admin1+"）":""}</button>`).join("");
+      $("hits").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+        const r = rs[b.dataset.i]; setLoc(r.name + (r.admin1&&r.admin1!==r.name?"（"+r.admin1+"）":""), r.latitude, r.longitude);
+      });
+    }).catch(()=>{ $("hits").textContent = "検索できませんでした"; });
+}
+$("search").onclick = search;
+$("q").onkeydown = e => { if (e.key==="Enter") search(); };
+$("here").onclick = () => {
+  if (!navigator.geolocation){ $("hits").textContent = "このブラウザでは現在地を取得できません"; return; }
+  $("hits").textContent = "現在地を取得中…";
+  navigator.geolocation.getCurrentPosition(
+    p => {
+      const {latitude:lat, longitude:lon} = p.coords;
+      // 町名を調べて表示（PCの現在地はWi-Fi/IPからの推定でずれることがある）
+      fetch(`https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=${lat}&lon=${lon}`)
+        .then(r=>r.json()).then(j=>setLoc(`現在地（${j.results?.lv01Nm || "?"}付近）`, lat, lon))
+        .catch(()=>setLoc("現在地", lat, lon));
+    },
+    () => { $("hits").textContent = "現在地を取得できませんでした（位置情報の許可を確認してください）"; });
+};
+
+function load(){
+$("place").textContent = LOC.name;
+$("out").innerHTML = `<div class="card">天気予報を取得中…</div>`;
+fetch(forecastURL()).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(j=>{
+  data=j;
+  const n=new Date();
+  document.getElementById("updated").textContent=`（${n.getHours()}:${String(n.getMinutes()).padStart(2,"0")} 取得）`;
+  render();
+}).catch(e=>{
+  document.getElementById("out").innerHTML=`<div class="card err">天気予報を取得できませんでした。インターネット接続を確認して、再読み込み（F5）してください。（${e.message}）</div>`;
+});
+}
+load();
+</script>
+</body>
+</html>

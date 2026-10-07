@@ -211,7 +211,7 @@ function render(){
 
   // 生地の厚さ別：干し始め(st)から乾きやすさ指数を積算し、必要量に達した時刻＝取り込み時刻
   const FAB = [["👕 薄手","Tシャツ・下着・シャツ",150],["👖 普通","タオル・パジャマ・ズボン",250],["🧥 厚手","ジーンズ・パーカー・バスタオル",400],["🧦 小物","靴下・ハンカチ・ハンドタオル",100]];
-  const half = x => { const m = Math.ceil(x*2)/2, hh = Math.floor(m); return lab(hh) + (m>hh ? "半" : ""); };
+  const half = x => { const m = Math.ceil(x*2)/2, hh = Math.floor(m); return (hh < 0 ? `前日${hh+24}` : `${hh}`) + (m>hh ? ":30" : ":00") + "～"; };
   const takeIn = need => {
     let acc = 0;
     for (const h of allH){
@@ -241,9 +241,9 @@ function render(){
       const t = takeIn(need);
       const key = at(t===null ? end : t), name = k.split(" ")[1];
       (groups[key] ||= []).push(`${k}（${ex}）${t===null?" ※乾ききらないので部屋干しで仕上げ":""}`);
-      plan.push(`${k}：${t===null ? `${end}時（乾ききらない）` : half(t)+"ごろ"}`);
+      plan.push(`${k}：${t===null ? `${end}時（乾ききらない）` : half(t)}`);
       groups[key].names = (groups[key].names||[]).concat(name);
-      const v = t===null ? `${end}時 <small>乾ききらない→部屋干しで仕上げ</small>` : `${half(t)}ごろ`;
+      const v = t===null ? `${end}時 <small>乾ききらない→部屋干しで仕上げ</small>` : half(t);
       return `<div class="k">${k}<small>${ex}</small></div><div class="v">${v}</div>`;
     }).join("");
     reason = st >= end

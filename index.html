@@ -41,7 +41,7 @@ h1 .pop span:nth-child(even){transform:rotate(5deg) translateY(-2px)}
 @media (max-width:600px){.hero{grid-template-columns:1fr}}
 .label{font-size:13px;color:var(--muted)}
 .hero .label{font-size:28px;font-weight:normal;color:var(--text);line-height:1.3}   /* 「取り込む時間帯」「脱水時間」の見出し */
-.hero .head .label{font-size:19px}   /* 「取り込む時間帯」は小さめにして、横に通知ボタン */
+.hero .label{font-size:19px}   /* 「取り込む時間帯」「脱水時間」は同じ小さめの大きさ。取り込むの横に通知ボタン */
 .head{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .head button{padding:5px 9px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;
   font-size:13px;font-weight:bold;font-family:inherit;cursor:pointer}
@@ -264,16 +264,15 @@ function render(){
     let mails = []; try { mails = JSON.parse(localStorage.getItem("sentaku-mails") || "[]"); } catch(e){}
     // 通知ボタンは見出し「取り込む時間帯」の横に置く
     btns = IS_MOBILE
-      ? `<button id="push">🔔 通知を予約</button><button id="ics">📅 カレンダー</button>`
+      ? `<button id="ics">📅 カレンダーに通知予約</button>`
       : `<button id="notify">📧 メールで知らせる</button>`;
     // メール通知はこのPCのOutlookで送るので、スマホでは出さない
     if (!IS_MOBILE) when += `<div class="notify"><div class="note" style="margin:0">通知先メールアドレス（最大6件）</div>` +
       [0,1,2,3,4,5].map(i=>`<input class="mail" type="email" placeholder="メールアドレス${i+1}" value="${(mails[i]||"").replace(/"/g,"&quot;")}">`).join("") +
       `<div class="note">このパソコンのOutlookから送ります。初回はブラウザに「開きますか？」と聞かれるので「開く」を選んでください。</div></div>`;
-    // スマホは取り込み時刻にプッシュ通知（無料アプリ ntfy）か、カレンダーの通知で知らせる
+    // スマホはカレンダーの通知で知らせる
     else when += `<div class="notify">` +
-      `<div class="note">🔔：無料アプリ「ntfy」を入れ、＋でトピック <b>${TOPIC}</b> を購読しておくと（最初の1回だけ）、このページを閉じていても時刻ちょうどに通知が届きます。` +
-      ` <a href="#" id="copytopic">トピック名をコピー</a><br>📅：アプリなしで使えます。カレンダーに予定を追加し、その時刻に通知されます。</div></div>`;
+      `<div class="note">📅：アプリなしで使えます。カレンダーに取り込み時刻の予定を追加し、その時刻に通知されます。</div></div>`;
     if (maxPP>=40) reason += `（降水確率 最大${maxPP}%、念のため注意）`;
   }
   const spinWhy = spin===8

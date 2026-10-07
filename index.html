@@ -154,6 +154,10 @@ const mark  = s => s>=60?"◎":s>=40?"○":s>=20?"△":"×";
 
 const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
 let notifyItems = [];
+// スマホ通知（ntfy）のトピック名：端末ごとにランダムに作って保存（他の人と混ざらないように）
+let TOPIC = "";
+try { TOPIC = localStorage.getItem("sentaku-topic") || ""; } catch(e){}
+if (!TOPIC) { TOPIC = "sentaku-" + Math.random().toString(36).slice(2, 12); try { localStorage.setItem("sentaku-topic", TOPIC); } catch(e){} }
 let data, day = 0;   // 開いたときは「今日」
 
 function render(){
@@ -258,6 +262,11 @@ function render(){
       [0,1,2,3,4,5].map(i=>`<input class="mail" type="email" placeholder="メールアドレス${i+1}" value="${(mails[i]||"").replace(/"/g,"&quot;")}">`).join("") +
       `<button id="notify">📧 取り込み時刻にメールで知らせる</button>` +
       `<div class="note">このパソコンのOutlookから送ります。初回はブラウザに「開きますか？」と聞かれるので「開く」を選んでください。</div></div>`;
+    // スマホは取り込み時刻にプッシュ通知（無料アプリ ntfy）か、カレンダーの通知で知らせる
+    else when += `<div class="notify"><div class="note" style="margin:0">取り込み時刻にスマホへ通知</div>` +
+      `<button id="push">🔔 通知を予約（ntfyアプリ）</button><button id="ics">📅 カレンダーに登録</button>` +
+      `<div class="note">🔔：無料アプリ「ntfy」を入れ、＋でトピック <b>${TOPIC}</b> を購読しておくと（最初の1回だけ）、このページを閉じていても時刻ちょうどに通知が届きます。` +
+      ` <a href="#" id="copytopic">トピック名をコピー</a><br>📅：アプリなしで使えます。カレンダーに予定を追加し、その時刻に通知されます。</div></div>`;
     if (maxPP>=40) reason += `（降水確率 最大${maxPP}%、念のため注意）`;
   }
   const spinWhy = spin===8
@@ -313,6 +322,51 @@ function render(){
     let bin = ""; bytes.forEach(b => bin += String.fromCharCode(b));
     location.href = "sentaku-mail:" + btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
   };
+  const futureItems = () => notifyItems.filter(it => new Date(it.at) > new Date());
+  const pb = document.getElementById("push");
+  if (pb) pb.onclick = async () => {
+    // 同じ通知を二重に予約しないよう、予約済みをこの端末に覚えておく
+    let sent = []; try { sent = JSON.parse(localStorage.getItem("sentaku-pushed") || "[]"); } catch(e){}
+    sent = sent.filter(s => new Date(s.split("|")[1]) > new Date());
+    const items = futureItems();
+    if (!items.length) { alert("取り込み時刻はもう過ぎています"); return; }
+    const todo = items.filter(it => !sent.includes(`${TOPIC}|${it.at}|${it.subject}`));
+    if (!todo.length) { alert("この通知はもう予約済みです"); return; }
+    pb.disabled = true;
+    try {
+      for (const it of todo) {
+        // text/plain で送るとCORSの事前確認なしで送れる（ntfyは本文のJSONを読む）。delay は通知する時刻（UNIX秒）
+        const r = await fetch("https://ntfy.sh/", {method:"POST", headers:{"Content-Type":"text/plain"},
+          body: JSON.stringify({topic:TOPIC, title:it.subject, message:it.body, tags:["basket"],
+            delay:String(Math.floor(new Date(it.at).getTime()/1000)), click: location.protocol.startsWith("http") ? location.href : undefined})});
+        if (!r.ok) throw new Error(r.status);
+        sent.push(`${TOPIC}|${it.at}|${it.subject}`);
+      }
+      try { localStorage.setItem("sentaku-pushed", JSON.stringify(sent)); } catch(e){}
+      alert("通知を予約しました：\n" + todo.map(it => it.at.slice(11) + "　" + it.subject.replace(/^🧺 /, "")).join("\n") +
+        `\n\n※ ntfyアプリでトピック「${TOPIC}」を購読していないと届きません`);
+    } catch(e) { alert("通知を予約できませんでした（インターネット接続を確認してください）"); }
+    pb.disabled = false;
+  };
+  const ib = document.getElementById("ics");
+  if (ib) ib.onclick = () => {
+    const items = futureItems();
+    if (!items.length) { alert("取り込み時刻はもう過ぎています"); return; }
+    const utc = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+    const esc = s => s.replace(/\\/g,"\\\\").replace(/[,;]/g, m => "\\"+m).replace(/\n/g,"\\n");
+    const ev = items.map(it => { const s = new Date(it.at), e = new Date(s.getTime() + 15*60000);
+      return ["BEGIN:VEVENT", `UID:${it.at}-${Math.random().toString(36).slice(2)}@sentaku-yoho`, `DTSTAMP:${utc(new Date())}`,
+        `DTSTART:${utc(s)}`, `DTEND:${utc(e)}`, `SUMMARY:${esc(it.subject)}`, `DESCRIPTION:${esc(it.body)}`,
+        "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(it.subject)}`, "TRIGGER:PT0M", "END:VALARM", "END:VEVENT"].join("\r\n"); });
+    const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//sentaku-yoho//JA", "CALSCALE:GREGORIAN", ...ev, "END:VCALENDAR"].join("\r\n");
+    const a = document.createElement("a");
+    a.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
+    a.download = "洗濯物の取り込み.ics";
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+  const ct = document.getElementById("copytopic");
+  if (ct) ct.onclick = e => { e.preventDefault();
+    navigator.clipboard?.writeText(TOPIC).then(() => alert("コピーしました：" + TOPIC), () => prompt("トピック名", TOPIC)) ?? prompt("トピック名", TOPIC); };
 }
 
 document.getElementById("t0").onclick=()=>{day=0;render()};

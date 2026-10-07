@@ -141,7 +141,7 @@ const mark  = s => s>=60?"◎":s>=40?"○":s>=20?"△":"×";
 
 const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
 let startHr = 6, notifyItems = [];   // 干し始める時刻（開いたときは6時。null＝おすすめ）
-let data, day = (new Date().getHours() < 5) ? 0 : 1;
+let data, day = 0;   // 開いたときは「今日」
 
 function render(){
   document.getElementById("t0").classList.toggle("on", day===0);

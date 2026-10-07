@@ -88,7 +88,6 @@ tr.best td{background:var(--accent-bg)}
   <div class="sub"><b id="place">新宿区荒木町</b> ／ 天気・気温・湿度・風・日差しから干し時間と脱水時間を判定 <span id="updated"></span></div>
 
   <div class="loc">
-    <select id="preset"></select>
     <input id="q" placeholder="郵便番号 または 地名（例：160-0007、横浜）">
     <button id="search">🔍 検索</button>
     <button id="here">📍 現在地</button>
@@ -120,11 +119,6 @@ if (location.protocol.startsWith("http")) {
     }
   }).catch(()=>{});
 }
-const PRESETS = [
-  ["新宿区荒木町",35.6905,139.7215],["札幌",43.0642,141.3469],["仙台",38.2682,140.8694],["東京駅",35.6812,139.7671],
-  ["横浜",35.4437,139.6380],["さいたま",35.8617,139.6455],["千葉",35.6074,140.1065],["名古屋",35.1815,136.9066],
-  ["京都",35.0116,135.7681],["大阪",34.6937,135.5023],["神戸",34.6901,135.1955],["広島",34.3853,132.4553],
-  ["福岡",33.5902,130.4017],["那覇",26.2124,127.6809]];
 let LOC = {name:"新宿区荒木町", lat:35.6905, lon:139.7215};
 let startHr = 6;   // 干し始める時刻（null＝おすすめ）
 // 保存した地域と干し始め（💾ボタンで保存。開いたときはこれを使う）
@@ -331,9 +325,6 @@ function setLoc(name, lat, lon){
   $("hits").innerHTML = "";
   load();
 }
-$("preset").innerHTML = `<option value="">地域を選ぶ…</option>` +
-  PRESETS.map((p,i)=>`<option value="${i}">${p[0]}</option>`).join("");
-$("preset").onchange = e => { const p = PRESETS[e.target.value]; if (p) setLoc(...p); };
 function searchZip(zip){
   $("hits").textContent = "郵便番号を検索中…";
   fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${zip}`).then(r=>r.json()).then(j=>{

@@ -91,7 +91,9 @@ tr.best td{background:var(--accent-bg)}
     <input id="q" placeholder="郵便番号 または 地名（例：160-0007、横浜）">
     <button id="search">🔍 検索</button>
     <button id="here">📍 現在地</button>
+    <button id="save">💾 地域と干し始めを保存</button>
   </div>
+  <div id="saved" class="note" style="margin:-4px 0 10px"></div>
   <div id="hits"></div>
 
   <div class="tabs">
@@ -114,7 +116,14 @@ const PRESETS = [
   ["京都",35.0116,135.7681],["大阪",34.6937,135.5023],["神戸",34.6901,135.1955],["広島",34.3853,132.4553],
   ["福岡",33.5902,130.4017],["那覇",26.2124,127.6809]];
 let LOC = {name:"新宿区荒木町", lat:35.6905, lon:139.7215};
-try { const v = JSON.parse(localStorage.getItem("sentaku-loc")); if (v && v.lat) LOC = v; } catch(e){}
+let startHr = 6;   // 干し始める時刻（null＝おすすめ）
+// 保存した地域と干し始め（💾ボタンで保存。開いたときはこれを使う）
+let SAVED = null;
+try {
+  SAVED = JSON.parse(localStorage.getItem("sentaku-settings"));
+  if (!SAVED) { const v = JSON.parse(localStorage.getItem("sentaku-loc")); if (v && v.lat) SAVED = {loc:v, start:6}; }  // 以前の形式
+} catch(e){}
+if (SAVED && SAVED.loc && SAVED.loc.lat) { LOC = SAVED.loc; startHr = SAVED.start; }
 const forecastURL = () => `https://api.open-meteo.com/v1/forecast?latitude=${LOC.lat}&longitude=${LOC.lon}` +
   `&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,shortwave_radiation,vapour_pressure_deficit` +
   `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset` +
@@ -140,7 +149,7 @@ const color = s => s>=60?"var(--good)":s>=40?"var(--ok)":"var(--bad)";
 const mark  = s => s>=60?"◎":s>=40?"○":s>=20?"△":"×";
 
 const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
-let startHr = 6, notifyItems = [];   // 干し始める時刻（開いたときは6時。null＝おすすめ）
+let notifyItems = [];
 let data, day = 0;   // 開いたときは「今日」
 
 function render(){
@@ -286,7 +295,7 @@ function render(){
     </table>
   </div>`;
   const sel = document.getElementById("start");
-  if (sel) sel.onchange = e => { startHr = e.target.value === "" ? null : +e.target.value; render(); };
+  if (sel) sel.onchange = e => { startHr = e.target.value === "" ? null : +e.target.value; render(); showSaved(); };
   const nb = document.getElementById("notify");
   if (nb) nb.onclick = () => {
     const to = [...document.querySelectorAll(".mail")].map(e=>e.value.trim()).filter(Boolean);
@@ -309,7 +318,6 @@ document.getElementById("t1").onclick=()=>{day=1;render()};
 const $ = id => document.getElementById(id);
 function setLoc(name, lat, lon){
   LOC = {name, lat:+(+lat).toFixed(4), lon:+(+lon).toFixed(4)};
-  try { localStorage.setItem("sentaku-loc", JSON.stringify(LOC)); } catch(e){}
   $("hits").innerHTML = "";
   load();
 }
@@ -362,7 +370,23 @@ $("here").onclick = () => {
     () => { $("hits").textContent = "現在地を取得できませんでした（位置情報の許可を確認してください）"; });
 };
 
+const sameLoc = (a,b) => a && b && a.name===b.name && a.lat===b.lat && a.lon===b.lon;
+function showSaved(){
+  if (!SAVED) { $("saved").textContent = "💾 を押すと、今の地域と干し始め時刻が次回開いたときの設定になります"; return; }
+  const changed = !sameLoc(SAVED.loc, LOC) || SAVED.start !== startHr;
+  $("saved").textContent = `保存中の設定：${SAVED.loc.name}・干し始め ${SAVED.start===null ? "おすすめ" : lab(SAVED.start)}` +
+    (changed ? "（今の表示は保存した設定と違います）" : "");
+}
+$("save").onclick = () => {
+  SAVED = {loc:LOC, start:startHr};
+  try { localStorage.setItem("sentaku-settings", JSON.stringify(SAVED)); localStorage.removeItem("sentaku-loc"); }
+  catch(e){ alert("保存できませんでした（ブラウザの設定を確認してください）"); return; }
+  showSaved();
+  $("saved").textContent += "　✅ 保存しました";
+};
+
 function load(){
+showSaved();
 $("place").textContent = LOC.name;
 $("out").innerHTML = `<div class="card">天気予報を取得中…</div>`;
 fetch(forecastURL()).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(j=>{

@@ -111,6 +111,15 @@ tr.best td{background:var(--accent-bg)}
 </main>
 
 <script>
+// スマホ版（GitHub Pages）：キャッシュの古いページが出ていたら、新しい版を取り直して1回だけ再読み込み
+if (location.protocol.startsWith("http")) {
+  fetch(location.href, {cache:"reload"}).then(r=>{
+    const lm = r.headers.get("last-modified");
+    if (lm && new Date(lm) > new Date(document.lastModified) && !sessionStorage.getItem("sentaku-reloaded")) {
+      sessionStorage.setItem("sentaku-reloaded", "1"); location.reload();
+    }
+  }).catch(()=>{});
+}
 const PRESETS = [
   ["新宿区荒木町",35.6905,139.7215],["札幌",43.0642,141.3469],["仙台",38.2682,140.8694],["東京駅",35.6812,139.7671],
   ["横浜",35.4437,139.6380],["さいたま",35.8617,139.6455],["千葉",35.6074,140.1065],["名古屋",35.1815,136.9066],

@@ -140,7 +140,7 @@ const color = s => s>=60?"var(--good)":s>=40?"var(--ok)":"var(--bad)";
 const mark  = s => s>=60?"◎":s>=40?"○":s>=20?"△":"×";
 
 const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
-let startHr = null, notifyItems = [];   // 干し始める時刻（null＝おすすめ）
+let startHr = 6, notifyItems = [];   // 干し始める時刻（開いたときは6時。null＝おすすめ）
 let data, day = (new Date().getHours() < 5) ? 0 : 1;
 
 function render(){

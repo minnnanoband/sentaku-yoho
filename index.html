@@ -46,6 +46,9 @@ h1 .pop span:nth-child(even){transform:rotate(5deg) translateY(-2px)}
 .head button{padding:5px 9px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;
   font-size:13px;font-weight:bold;font-family:inherit;cursor:pointer}
 .head button:first-of-type{margin-left:auto}
+/* スマホの通知ボタン2つは同じ幅で横に並べ、折り返すときも2つ一緒に右寄せ */
+.head .btns{margin-left:auto;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.head .btns button{margin:0;white-space:nowrap}
 .big{font-size:40px;font-weight:bold;line-height:1.2}
 .verdict{font-size:20px;font-weight:bold;margin-top:4px}
 .why{font-size:13px;color:var(--muted);margin-top:6px}
@@ -270,7 +273,7 @@ function render(){
     let mails = []; try { mails = JSON.parse(localStorage.getItem("sentaku-mails") || "[]"); } catch(e){}
     // 通知ボタンは見出し「取り込む時間帯」の横に置く
     btns = IS_MOBILE
-      ? `<button id="ics">📅 個別に通知</button><button id="icsall">📅 全て乾いたら通知</button>` +
+      ? `<div class="btns"><button id="ics">📅 個別に通知</button><button id="icsall">📅 全て乾いたら通知</button></div>` +
         // スマホはカレンダーの通知で知らせる。注意事項はボタンのすぐ下に出す
         `<div class="note" style="width:100%">「個別に通知」は生地ごとの取り込み時刻に、「全て乾いたら通知」は一番遅い取り込み時刻に1回だけ、カレンダーから通知されます。<br>⚠ 時刻を変えて押し直すと予定が二重になるので、前の予定はカレンダーで消してください</div>`
       : `<button id="notify">📧 メールで知らせる</button>`;

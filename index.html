@@ -272,7 +272,7 @@ function render(){
       `<div class="note">このパソコンのOutlookから送ります。初回はブラウザに「開きますか？」と聞かれるので「開く」を選んでください。</div></div>`;
     // スマホはカレンダーの通知で知らせる
     else when += `<div class="notify">` +
-      `<div class="note">📅：アプリなしで使えます。カレンダーに取り込み時刻の予定を追加し、その時刻に通知されます。</div></div>`;
+      `<div class="note">📅：アプリなしで使えます。カレンダーに取り込み時刻の予定を追加し、その時刻に通知されます。<br>時刻を変えて押し直すと予定が二重になるので、前の予定はカレンダーで消してください。</div></div>`;
     if (maxPP>=40) reason += `（降水確率 最大${maxPP}%、念のため注意）`;
   }
   const spinWhy = spin===8
@@ -358,6 +358,13 @@ function render(){
   if (ib) ib.onclick = () => {
     const items = futureItems();
     if (!items.length) { alert("取り込み時刻はもう過ぎています"); return; }
+    // iPhoneのカレンダーは入れ直しても上書きされず二重になるので、前に入れた予定がまだ先なら消すよう案内する
+    let prev = []; try { prev = JSON.parse(localStorage.getItem("sentaku-ics") || "[]"); } catch(e){}
+    prev = prev.filter(p => new Date(p.at) > new Date());
+    const fmt = p => `${+p.at.slice(5,7)}/${+p.at.slice(8,10)} ${+p.at.slice(11,13)}:${p.at.slice(14,16)}～（${p.names.join("・")}）`;
+    if (prev.length && !confirm("前に入れた予定がカレンダーに残っています：\n" + prev.map(fmt).join("\n") +
+      "\n\nこのまま追加すると二重になります。前の予定はカレンダーアプリで消してください。\n追加しますか？")) return;
+    try { localStorage.setItem("sentaku-ics", JSON.stringify(items.map(it => ({at: it.at, names: it.names})))); } catch(e){}
     const utc = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
     const esc = s => s.replace(/\\/g,"\\\\").replace(/[,;]/g, m => "\\"+m).replace(/\n/g,"\\n");
     // ボタンを押すたびに時刻を更新：UIDを「日付＋生地」で固定し、SEQUENCEを増やして同じ予定を上書きする

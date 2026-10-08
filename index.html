@@ -264,15 +264,14 @@ function render(){
     let mails = []; try { mails = JSON.parse(localStorage.getItem("sentaku-mails") || "[]"); } catch(e){}
     // 通知ボタンは見出し「取り込む時間帯」の横に置く
     btns = IS_MOBILE
-      ? `<button id="ics">📅 カレンダーに通知予約</button>`
+      ? `<button id="ics">📅 カレンダーに通知予約</button>` +
+        // スマホはカレンダーの通知で知らせる。注意事項はボタンのすぐ下に出す
+        `<div class="note" style="width:100%">取り込み時刻にカレンダーから通知されます。<br>⚠ 時刻を変えて押し直すと予定が二重になるので、前の予定はカレンダーで消してください</div>`
       : `<button id="notify">📧 メールで知らせる</button>`;
     // メール通知はこのPCのOutlookで送るので、スマホでは出さない
     if (!IS_MOBILE) when += `<div class="notify"><div class="note" style="margin:0">通知先メールアドレス（最大6件）</div>` +
       [0,1,2,3,4,5].map(i=>`<input class="mail" type="email" placeholder="メールアドレス${i+1}" value="${(mails[i]||"").replace(/"/g,"&quot;")}">`).join("") +
       `<div class="note">このパソコンのOutlookから送ります。初回はブラウザに「開きますか？」と聞かれるので「開く」を選んでください。</div></div>`;
-    // スマホはカレンダーの通知で知らせる
-    else when += `<div class="notify">` +
-      `<div class="note">📅：アプリなしで使えます。カレンダーに取り込み時刻の予定を追加し、その時刻に通知されます。<br>時刻を変えて押し直すと予定が二重になるので、前の予定はカレンダーで消してください。</div></div>`;
     if (maxPP>=40) reason += `（降水確率 最大${maxPP}%、念のため注意）`;
   }
   const spinWhy = spin===8

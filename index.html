@@ -82,8 +82,8 @@ tr.best td{background:var(--accent-bg)}
 .fab .v small{font-size:12px;font-weight:normal;color:var(--muted)}
 /* 「干した！」ボタン：押した時刻を干し始めにして取り込み時刻を計算し直す */
 .hang{grid-column:1/-1;margin:0 0 8px;font-size:13px;color:var(--muted)}
-.hangbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.hangbtns button{padding:12px 4px;white-space:nowrap;font-size:clamp(14px,4.2vw,20px)}
+.hangbtns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}   /* 文字が長くても列幅は半分ずつ（はみ出さない） */
+.hangbtns button{padding:12px 2px;white-space:nowrap;overflow:hidden;font-size:clamp(13px,3.8vw,20px)}
 .hang button.in{background:#7b61ff}
 .hang button{display:block;width:100%;padding:12px;margin-bottom:4px;border:0;border-radius:12px;background:var(--good);color:#fff;
   font-size:20px;font-weight:bold;font-family:inherit;cursor:pointer}

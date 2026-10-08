@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>カレンダー登録テスト</title>
+<style>body{font-family:sans-serif;margin:16px;background:#fff;color:#222}button{display:block;width:100%;font-size:18px;padding:14px;margin:10px 0}p{line-height:1.6}</style>
+</head><body>
+<h2>カレンダー登録テスト</h2>
+<p>A〜Dを順番に押して、「カレンダーに追加」画面が出たボタンを教えてください。<br>テストの予定は<b>今から5分後</b>（通知あり）です。追加したら、通知が来るかも見てください。</p>
+<p id="sw">準備中…</p>
+<button id="a">A：方式A（blob）</button>
+<button id="b">B：方式B（サーバー風ファイル）</button>
+<button id="c">C：方式C（共有）</button>
+<button id="d">D：方式D（data・今の方式）</button>
+<script>
+const ics = tag => {
+  const utc = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+  const s = new Date(Date.now() + 5*60000), e = new Date(s.getTime() + 15*60000);
+  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//sentaku-yoho//JA","METHOD:PUBLISH","BEGIN:VEVENT",
+    `UID:test-${tag}-${Date.now()}@sentaku-yoho`,`DTSTAMP:${utc(new Date())}`,`DTSTART:${utc(s)}`,`DTEND:${utc(e)}`,
+    `SUMMARY:🧺 テスト通知（方式${tag}）`,"BEGIN:VALARM","ACTION:DISPLAY",`DESCRIPTION:テスト通知（方式${tag}）`,"TRIGGER:PT0M","END:VALARM",
+    "END:VEVENT","END:VCALENDAR"].join("\r\n");
+};
+const ok = document.getElementById("sw");
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").then(() => navigator.serviceWorker.ready)
+  .then(() => ok.textContent = navigator.serviceWorker.controller ? "準備OK" : "準備OK（Bが動かなければページを再読み込みしてもう一度）")
+  .catch(e => ok.textContent = "B用の準備に失敗：" + e);
+else ok.textContent = "このブラウザはBに未対応";
+document.getElementById("a").onclick = () => { location.href = URL.createObjectURL(new Blob([ics("A")], {type:"text/calendar"})); };
+document.getElementById("b").onclick = () => {
+  const bytes = new TextEncoder().encode(ics("B")); let bin = ""; bytes.forEach(x => bin += String.fromCharCode(x));
+  location.href = "ics/sentaku.ics?d=" + btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+};
+document.getElementById("c").onclick = async () => {
+  const f = new File([ics("C")], "sentaku.ics", {type:"text/calendar"});
+  try { await navigator.share({files:[f]}); } catch(e) { alert("共有できませんでした：" + e.message); }
+};
+document.getElementById("d").onclick = () => { location.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(ics("D")); };
+</script>
+</body></html>

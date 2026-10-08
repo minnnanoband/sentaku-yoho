@@ -369,8 +369,8 @@ function render(){
         ...(i ? [] : ["BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(it.subject)}`, "TRIGGER:PT0M", "END:VALARM"]), "END:VEVENT"].join("\r\n"); }));
     const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//sentaku-yoho//JA", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", ...ev, "END:VCALENDAR"].join("\r\n");
     const url = "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
-    // iPhoneのSafariはdownload付きリンクだと何も起きないので、直接開いて「カレンダーに追加」画面を出す
-    if (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform))) { location.href = url; return; }
+    // iPhoneのSafariはdata URLもdownload付きリンクも開かないので、blobで開いて「カレンダーに追加」画面を出す（実機テストで確認済み）
+    if (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform))) { location.href = URL.createObjectURL(new Blob([ics], {type:"text/calendar"})); return; }
     const a = document.createElement("a");
     a.href = url;
     a.download = "洗濯物の取り込み.ics";

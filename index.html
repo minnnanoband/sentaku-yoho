@@ -54,6 +54,10 @@ h1 .pop span:nth-child(even){transform:rotate(5deg) translateY(-2px)}
 .why{font-size:13px;color:var(--muted);margin-top:6px}
 .spin .big{color:var(--accent)}
 .spin{background:var(--accent-bg)}
+.spinrow{margin-top:10px;padding:8px 10px;border-radius:10px;border:2px solid transparent}
+.spinrow.cur{border-color:var(--accent)}
+.spinkind{font-size:16px;font-weight:bold;display:flex;align-items:center;gap:8px}
+.spincur{font-size:12px;padding:2px 7px;border-radius:999px;background:var(--accent);color:#fff}
 .summary{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:14px}
 .summary b{font-size:16px}
 table{width:100%;border-collapse:collapse;font-size:14px}
@@ -122,7 +126,7 @@ tr.best td{background:var(--accent-bg)}
 
   <div class="note">
     データ: Open-Meteo（気象庁モデル等）。判定の目安: 乾きやすさ指数＝飽差（空気がどれだけ水分を吸えるか）・日射・風・気温から計算し、降水確率で減点。<br>
-    脱水時間: 外干しでよく乾く日は <b>8分</b>（シワを抑える）、乾きにくい日・部屋干しの日は <b>12分</b>（水分を多く飛ばして生乾きを防ぐ）。
+    脱水時間（外干し・部屋干し別）: 外干しはよく乾く日は <b>8分</b>（シワを抑える）、乾きにくい日は <b>12分</b>。部屋干しは <b>12分</b>、湿度70%以上の日は <b>15分</b>（水分を多く飛ばして生乾きを防ぐ）。
   </div>
   <!-- ページの一番下：乾く時間は目安であることの注意書き -->
   <div class="note" style="margin-top:10px">
@@ -258,7 +262,9 @@ function render(){
     }
     return null;   // 時間内に乾ききらない
   };
-  const spin = (kind==="out" && outdoor && dayAvg >= 55 && avgRH < 70) ? 8 : 12;
+  // 脱水時間は外干し・部屋干しで別々に出す（外干し：よく乾く日は8分、乾きにくい日は12分／部屋干し：12分、湿度70%以上の日は15分）
+  const spinOut = (outdoor && dayAvg >= 55 && avgRH < 70) ? 8 : 12;
+  const spinIn = avgRH >= 70 ? 15 : 12;
 
   const d = new Date(date+"T00:00:00");
   const ds = `${d.getMonth()+1}月${d.getDate()}日（${"日月火水木金土"[d.getDay()]}）`;
@@ -328,9 +334,14 @@ function render(){
     [0,1,2,3,4,5].map(i=>`<input class="mail" type="email" placeholder="メールアドレス${i+1}" value="${(mails[i]||"").replace(/"/g,"&quot;")}">`).join("") +
     `<div class="note">このパソコンのOutlookから送ります。初回はブラウザに「開きますか？」と聞かれるので「開く」を選んでください。</div></div>`;
   if (maxPP>=40) reason += `（降水確率 最大${maxPP}%、念のため注意）`;
-  const spinWhy = spin===8
-    ? "よく乾く日なので短め脱水でOK。シワが少なく仕上がります"
-    : (kind==="out" ? "乾きにくい条件なので長めに脱水して乾燥時間を短縮" : "部屋干しなので長めに脱水して生乾き臭を防止");
+  const whyOut = !outdoor ? "外では乾きにくい日です（部屋干しがおすすめ）。干すなら長めに脱水"
+    : spinOut===8 ? "よく乾く日なので短め脱水でOK。シワが少なく仕上がります" : "乾きにくい条件なので長めに脱水して乾燥時間を短縮";
+  const whyIn = spinIn===15 ? "湿度が高い日なので、さらに長めに脱水して生乾き臭を防止" : "部屋干しなので長めに脱水して生乾き臭を防止";
+  const spinRow = (k, ic, t, m, why) => `<div class="spinrow ${k===kind?"cur":""}">
+      <div class="spinkind">${ic} ${t}${k===kind?`<span class="spincur">${hung?"いまの干し方":"おすすめ"}</span>`:""}</div>
+      <div class="big">${m}分</div>
+      <div class="verdict">${m===8?"短め":m===15?"かなり長め":"長め"}（${m}分）</div>
+      <div class="why">${why}</div></div>`;
 
 
   document.getElementById("out").innerHTML = `
@@ -349,9 +360,8 @@ function render(){
     </div>
     <div class="card spin">
       <div class="label">脱水時間</div>
-      <div class="big">${spin}分</div>
-      <div class="verdict">${spin===8?"短め（8分）":"長め（12分）"}</div>
-      <div class="why">${spinWhy}</div>
+      ${spinRow("out","☀️","外干し",spinOut,whyOut)}
+      ${spinRow("in","🏠","部屋干し",spinIn,whyIn)}
     </div>
   </div>
   <div class="card tablewrap">

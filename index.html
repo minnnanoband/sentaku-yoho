@@ -82,6 +82,9 @@ tr.best td{background:var(--accent-bg)}
 .fab .v small{font-size:12px;font-weight:normal;color:var(--muted)}
 /* 「干した！」ボタン：押した時刻を干し始めにして取り込み時刻を計算し直す */
 .hang{grid-column:1/-1;margin:0 0 8px;font-size:13px;color:var(--muted)}
+.hangbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.hangbtns button{padding:12px 4px;white-space:nowrap;font-size:clamp(14px,4.2vw,20px)}
+.hang button.in{background:#7b61ff}
 .hang button{display:block;width:100%;padding:12px;margin-bottom:4px;border:0;border-radius:12px;background:var(--good);color:#fff;
   font-size:20px;font-weight:bold;font-family:inherit;cursor:pointer}
 .hang button:disabled{background:var(--line);color:var(--muted);cursor:default;font-size:15px}
@@ -140,9 +143,9 @@ if (location.protocol.startsWith("http")) {
   }).catch(()=>{});
 }
 let LOC = {name:"新宿区荒木町", lat:35.6905, lon:139.7215};
-// 「干した！」を押した日時（ミリ秒）。この端末に保存し、その日の取り込み時刻の計算に使う
+// 「外干しした！」「部屋干しした！」を押した日時（ミリ秒）と干し方（out/in）。この端末に保存し、その日の取り込み時刻の計算に使う
 let HUNG = null;
-try { HUNG = +localStorage.getItem("sentaku-hung") || null; } catch(e){}
+try { const v = JSON.parse(localStorage.getItem("sentaku-hung")); HUNG = typeof v === "number" ? {t:v, kind:"out"} : v?.t ? v : null; } catch(e){}
 // 「干した！」を押したときに自動で予約する通知：each＝個別に通知、all＝全て乾いたら通知、off＝しない
 let AUTO = "each";
 try { AUTO = localStorage.getItem("sentaku-autonotify") || "each"; } catch(e){}
@@ -165,7 +168,7 @@ const rainy = h => h.pp >= 60 || h.pr >= 0.3 || h.code >= 51;
 const lab = hr => hr < 0 ? `前日${hr+24}時` : `${hr}時`;
 // 分まで表示（「干した！」の時刻用）。例：10.5 → 10:30、-2.25 → 前日22:15
 const hm = x => { const m = Math.round(x*60), hh = Math.floor(m/60);
-  return (hh < 0 ? `前日${hh+24}` : `${hh}`) + ":" + String(m - hh*60).padStart(2,"0"); };
+  return (hh < 0 ? `前日${hh+24}` : hh >= 24 ? `翌${hh-24}` : `${hh}`) + ":" + String(m - hh*60).padStart(2,"0"); };
 // 1時間ごとの乾きやすさ指数 (0〜100)
 function score(h){
   if (rainy(h)) return 0;                                               // 雨
@@ -225,21 +228,28 @@ function render(){
 
   const outdoor = best && best.avg >= 40;
 
-  // 干し始め：「干した！」を押した時刻。押す前は、今が干せる時間帯ならいま干した場合、そうでなければおすすめ区間の開始で試算。
-  // 取り込み期限：おすすめ区間で試算ならその区間の終わり、それ以外は雨・夕方などで乾かなくなる時刻（指数15未満）
+  // 干し方：「外干しした！」「部屋干しした！」を押したらその干し方、押す前は天気でおすすめの方で試算
+  // 干し始め：押した時刻。押す前は、今が干せる時間帯ならいま干した場合、そうでなければおすすめの時刻で試算。
+  // 取り込み期限（外干し）：おすすめ区間で試算ならその区間の終わり、それ以外は雨・夕方などで乾かなくなる時刻（指数15未満）
   const rel = ms => (ms - new Date(date+"T00:00:00").getTime()) / 3600000;   // この日の0時からの時間数（前日20時＝-4）
   const nowRel = rel(Date.now()), canHang = nowRel >= -4 && nowRel < 18;
-  const hungRel = HUNG ? rel(HUNG) : null, hung = hungRel !== null && hungRel >= -4 && hungRel < 18;
-  const mode = !outdoor ? "" : hung ? "hung" : (canHang && nowRel > best.a) ? "now" : "best";
-  const st = mode==="hung" ? hungRel : mode==="now" ? nowRel : best?.a;
+  const hungRel = HUNG ? rel(HUNG.t) : null, hung = hungRel !== null && hungRel >= -4 && hungRel < 18;
+  const kind = hung ? HUNG.kind : outdoor ? "out" : "in", KN = {out:"外干し", in:"部屋干し"}[kind];
+  const mode = hung ? "hung" : (kind==="out" ? (canHang && nowRel > best.a ? "now" : "best") : (canHang ? "now" : "fixed"));
+  const st = mode==="hung" ? hungRel : mode==="now" ? nowRel : mode==="best" ? best.a : 9;
   let end = 18;
-  if (mode === "best") end = best.b;
-  else if (outdoor) { const stop = allH.find(h=>h.hr>=Math.floor(st) && (rainy(h) || (h.hr>=12 && h.s<15))); if (stop) end = stop.hr; }
+  if (kind === "in") end = Infinity;
+  else if (mode === "best") end = best.b;
+  else { const stop = allH.find(h=>h.hr>=Math.floor(st) && (rainy(h) || (h.hr>=12 && h.s<15))); if (stop) end = stop.hr; }
 
   // 生地の厚さ別：干し始め(st)から乾きやすさ指数を積算し、必要量に達した時刻＝取り込み時刻
   const FAB = [["👕 薄手","Tシャツ・下着・シャツ",150],["👖 普通","タオル・パジャマ・ズボン",250],["🧥 厚手","ジーンズ・パーカー・バスタオル",400],["🧦 小物","靴下・ハンカチ・ハンドタオル",100]];
-  const half = x => { const m = Math.ceil(x*2)/2, hh = Math.floor(m); return (hh < 0 ? `前日${hh+24}` : `${hh}`) + (m>hh ? ":30" : ":00") + "～"; };
+  const dayLab = hh => hh < 0 ? `前日${hh+24}` : hh >= 24 ? `翌${hh-24}` : `${hh}`;
+  const half = x => { const m = Math.ceil(x*2)/2, hh = Math.floor(m); return dayLab(hh) + (m>hh ? ":30" : ":00") + "～"; };
+  // 部屋干しは天気に関係なく1時間あたり一定の量だけ乾くとみる（湿度が高い日ほど遅い。湿度60%で約32/時→薄手5時間・厚手12〜13時間）
+  const rateIn = Math.max(20, Math.min(35, 20 + (100-avgRH)*0.3));
   const takeIn = need => {
+    if (kind === "in") return st + need/rateIn;
     let acc = 0;
     for (const h of allH){
       // 干し始めが10:30なら10時台は半分だけ数える
@@ -250,75 +260,80 @@ function render(){
     }
     return null;   // 時間内に乾ききらない
   };
-  const spin = (outdoor && dayAvg >= 55 && avgRH < 70) ? 8 : 12;
+  const spin = (kind==="out" && outdoor && dayAvg >= 55 && avgRH < 70) ? 8 : 12;
 
   const d = new Date(date+"T00:00:00");
   const ds = `${d.getMonth()+1}月${d.getDate()}日（${"日月火水木金土"[d.getDay()]}）`;
-  let verdict, when, reason, btns = "";
-  if (!outdoor){
-    verdict = "部屋干しがおすすめ";
-    when = "—";
-    reason = rainHrs.length ? `${rainHrs[0]}時ごろから雨の予報（降水確率 最大${maxPP}%）` : `湿度が高く乾きにくい（日中平均 ${avgRH}%）`;
+  let when, reason, btns = "";
+  const verdict = !outdoor ? "部屋干しがおすすめ" : best.avg>=60 ? "外干し日和！" : "外干しOK（やや乾きにくい）";
+  // メール通知用：取り込み時刻（30分単位）の日時ごとに生地をまとめる
+  const at = x => { const m = Math.ceil(x*2)/2, d0 = new Date(date+"T00:00:00"); d0.setMinutes(m*60);
+    const z = n => String(n).padStart(2,"0");
+    return `${d0.getFullYear()}-${z(d0.getMonth()+1)}-${z(d0.getDate())}T${z(d0.getHours())}:${z(d0.getMinutes())}`; };
+  const groups = {}, plan = [];
+  when = [...FAB].sort((x,y)=>x[2]-y[2]).map(([k,ex,need])=>{
+    const t = takeIn(need);
+    const key = at(t===null ? end : t), name = k.split(" ")[1];
+    (groups[key] ||= []).push(`${k}（${ex}）${t===null?" ※乾ききらないので部屋干しで仕上げ":""}`);
+    plan.push(`${k}：${t===null ? `${end}時（乾ききらない）` : half(t)}`);
+    groups[key].names = (groups[key].names||[]).concat(name);
+    const v = t===null ? `${end}時 <small>乾ききらない→部屋干しで仕上げ</small>` : half(t);
+    return `<div class="k">${k}<small>${ex}</small></div><div class="v">${v}</div>`;
+  }).join("");
+  const stTxt = mode==="hung" ? `${hm(st)}に${KN}した洗濯物` : mode==="now" ? `いま（${hm(st)}）${KN}した場合`
+    : mode==="best" ? `おすすめの${best.a}時に外干しした場合` : `9時に部屋干しした場合`;
+  const why = rainHrs.length ? `${rainHrs[0]}時ごろから雨の予報（降水確率 最大${maxPP}%）` : `湿度が高く乾きにくい（日中平均 ${avgRH}%）`;
+  if (kind === "in") {
+    reason = `${stTxt}の目安。部屋干しは外より乾きにくいので長めにみています（扇風機・除湿機を当てると早く乾きます）。` +
+      (outdoor ? `外干しもできる日です（おすすめ ${best.a}〜${best.b}時）` : why);
+  } else if (!best) {
+    reason = `${why}。外ではあまり乾かないので、部屋干しがおすすめです`;
   } else {
-    verdict = best.avg>=60 ? "外干し日和！" : "外干しOK（やや乾きにくい）";
-    // メール通知用：取り込み時刻（30分単位）の日時ごとに生地をまとめる
-    const at = x => { const m = Math.ceil(x*2)/2, d0 = new Date(date+"T00:00:00"); d0.setMinutes(m*60);
-      const z = n => String(n).padStart(2,"0");
-      return `${d0.getFullYear()}-${z(d0.getMonth()+1)}-${z(d0.getDate())}T${z(d0.getHours())}:${z(d0.getMinutes())}`; };
-    const groups = {}, plan = [];
-    when = [...FAB].sort((x,y)=>x[2]-y[2]).map(([k,ex,need])=>{
-      const t = takeIn(need);
-      const key = at(t===null ? end : t), name = k.split(" ")[1];
-      (groups[key] ||= []).push(`${k}（${ex}）${t===null?" ※乾ききらないので部屋干しで仕上げ":""}`);
-      plan.push(`${k}：${t===null ? `${end}時（乾ききらない）` : half(t)}`);
-      groups[key].names = (groups[key].names||[]).concat(name);
-      const v = t===null ? `${end}時 <small>乾ききらない→部屋干しで仕上げ</small>` : half(t);
-      return `<div class="k">${k}<small>${ex}</small></div><div class="v">${v}</div>`;
-    }).join("");
-    const stTxt = mode==="hung" ? `${hm(st)}に干した洗濯物` : mode==="now" ? `いま（${hm(st)}）干した場合` : `おすすめの${best.a}時に干した場合`;
     reason = st >= end
       ? `${hm(st)}からでは乾きにくい時間帯です。おすすめは ${best.a}〜${best.b}時`
       : `${stTxt}の目安。${end}時以降は乾きにくくなるので、遅くともそれまでに取り込んでください` +
         (mode==="best" ? `（乾きやすさ ${Math.round(best.avg)}点）` : `（おすすめは ${best.a}〜${best.b}時）`);
-    // 「干した！」ボタンは一番上に。押した時刻から取り込み時刻を計算し直す
-    const hangNote = mode==="hung" ? `✅ ${hm(st)}に干しました（この時刻から計算しています）<a href="#" id="unhang">取り消す</a>`
-      : canHang ? `干したら押してください。押した時刻から取り込み時刻を計算します（今は${stTxt}の目安）`
-      : `今は${stTxt}の目安です`;
-    when = `<div class="hang"><button id="hang" ${canHang ? "" : "disabled"}>` +
-      (canHang ? (mode==="hung" ? "👕 干した！（押し直す）" : "👕 干した！") : nowRel < -4 ? "前日20時から押せます" : "今日の干す時間は終わりました") +
-      `</button>${hangNote}` +
-      // 「干した！」を押したときに自動で予約する通知の種類（この端末に保存）
-      `<div class="auto">干したら自動で：<select id="autonotify">` +
-      [["each","個別に通知"],["all","全て乾いたら通知"],["off","通知しない"]].map(([v,t])=>`<option value="${v}" ${AUTO===v?"selected":""}>${t}</option>`).join("") +
-      `</select></div></div>` + when;
-    notifyItems = Object.keys(groups).sort().map(key => ({
-      at: key, day: date, names: groups[key].names,
-      subject: `🧺 洗濯物を取り込む時間です（${groups[key].names.join("・")}）`,
-      body: `${LOC.name}　${ds}\n${hm(st)}に干した洗濯物の取り込み時間です。\n\n▼ 今取り込むもの\n${groups[key].join("\n")}\n\n▼ この日の予定\n${plan.join("\n")}\n\n― 洗濯物干し予報`
-    }));
-    // 「全て乾いたら通知」用：一番遅い取り込み時刻に1回だけ、全部まとめて知らせる
-    const lastKey = Object.keys(groups).sort().pop();
-    allDryItem = { at: lastKey, day: date, all: true, names: Object.values(groups).flatMap(g => g.names),
-      subject: `🧺 洗濯物が全部乾きました（取り込み時間です）`,
-      body: `${LOC.name}　${ds}\n${hm(st)}に干した洗濯物が全部乾く時間です。まとめて取り込んでください。\n\n▼ この日の予定\n${plan.join("\n")}\n\n― 洗濯物干し予報`
-    };
-    // 通知先は最大6件（このブラウザに保存）
-    let mails = []; try { mails = JSON.parse(localStorage.getItem("sentaku-mails") || "[]"); } catch(e){}
-    // PCはメール通知。スマホと同じく、ボタン2つを厚手の下に横に並べ、注意事項はそのすぐ下に出す
-    if (!IS_MOBILE) when += `<div class="calbtns"><button id="notify">📧 個別に通知</button><button id="notifyall">📧 全て乾いたら通知</button></div>` +
-      `<div class="calnote">「個別に通知」は生地ごとの取り込み時刻に、「全て乾いたら通知」は一番遅い取り込み時刻に1回だけ、メールで知らせます。<br>⚠ 押し直すと前の予約は取り消されて、新しい予約に置き換わります</div>`;
-    // スマホはカレンダーの通知で知らせる。ボタン2つは厚手の下に横に並べ、注意事項はそのすぐ下に出す
-    else when += `<div class="calbtns"><button id="ics">📅 個別に通知</button><button id="icsall">📅 全て乾いたら通知</button></div>` +
-      `<div class="calnote">「個別に通知」は生地ごとの取り込み時刻に、「全て乾いたら通知」は一番遅い取り込み時刻に1回だけ、カレンダーから通知されます。<br>⚠ 時刻を変えて押し直すと予定が二重になるので、前の予定はカレンダーで消してください</div>`;
-    // メール通知はこのPCのOutlookで送るので、スマホでは出さない
-    if (!IS_MOBILE) when += `<div class="notify"><div class="note" style="margin:0">通知先メールアドレス（最大6件）</div>` +
-      [0,1,2,3,4,5].map(i=>`<input class="mail" type="email" placeholder="メールアドレス${i+1}" value="${(mails[i]||"").replace(/"/g,"&quot;")}">`).join("") +
-      `<div class="note">このパソコンのOutlookから送ります。初回はブラウザに「開きますか？」と聞かれるので「開く」を選んでください。</div></div>`;
-    if (maxPP>=40) reason += `（降水確率 最大${maxPP}%、念のため注意）`;
   }
+  // 「外干しした！」「部屋干しした！」ボタンは一番上に。押した時刻と干し方から取り込み時刻を計算し直す
+  const hangNote = mode==="hung" ? `✅ ${hm(st)}に${KN}しました（この時刻から計算しています）<a href="#" id="unhang">取り消す</a>`
+    : canHang ? `干したら押してください。押した時刻から取り込み時刻を計算します（今は${stTxt}の目安）`
+    : `今は${stTxt}の目安です`;
+  when = `<div class="hang">` +
+    (canHang ? `<div class="hangbtns">` +
+      [["out","☀️ 外干しした！"],["in","🏠 部屋干しした！"]].map(([k,t])=>`<button class="hangbtn ${k}" data-kind="${k}">${t}</button>`).join("") + `</div>`
+      : `<button disabled>${nowRel < -4 ? "前日20時から押せます" : "今日の干す時間は終わりました"}</button>`) +
+    hangNote +
+    // 干したボタンを押したときに自動で予約する通知の種類（この端末に保存）
+    `<div class="auto">干したら自動で：<select id="autonotify">` +
+    [["each","個別に通知"],["all","全て乾いたら通知"],["off","通知しない"]].map(([v,t])=>`<option value="${v}" ${AUTO===v?"selected":""}>${t}</option>`).join("") +
+    `</select></div></div>` + when;
+  notifyItems = Object.keys(groups).sort().map(key => ({
+    at: key, day: date, names: groups[key].names,
+    subject: `🧺 洗濯物を取り込む時間です（${groups[key].names.join("・")}）`,
+    body: `${LOC.name}　${ds}\n${hm(st)}に${KN}した洗濯物の取り込み時間です。\n\n▼ 今取り込むもの\n${groups[key].join("\n")}\n\n▼ この日の予定\n${plan.join("\n")}\n\n― 洗濯物干し予報`
+  }));
+  // 「全て乾いたら通知」用：一番遅い取り込み時刻に1回だけ、全部まとめて知らせる
+  const lastKey = Object.keys(groups).sort().pop();
+  allDryItem = { at: lastKey, day: date, all: true, names: Object.values(groups).flatMap(g => g.names),
+    subject: `🧺 洗濯物が全部乾きました（取り込み時間です）`,
+    body: `${LOC.name}　${ds}\n${hm(st)}に${KN}した洗濯物が全部乾く時間です。まとめて取り込んでください。\n\n▼ この日の予定\n${plan.join("\n")}\n\n― 洗濯物干し予報`
+  };
+  // 通知先は最大6件（このブラウザに保存）
+  let mails = []; try { mails = JSON.parse(localStorage.getItem("sentaku-mails") || "[]"); } catch(e){}
+  // PCはメール通知。スマホと同じく、ボタン2つを厚手の下に横に並べ、注意事項はそのすぐ下に出す
+  if (!IS_MOBILE) when += `<div class="calbtns"><button id="notify">📧 個別に通知</button><button id="notifyall">📧 全て乾いたら通知</button></div>` +
+    `<div class="calnote">「個別に通知」は生地ごとの取り込み時刻に、「全て乾いたら通知」は一番遅い取り込み時刻に1回だけ、メールで知らせます。<br>⚠ 押し直すと前の予約は取り消されて、新しい予約に置き換わります</div>`;
+  // スマホはカレンダーの通知で知らせる。ボタン2つは厚手の下に横に並べ、注意事項はそのすぐ下に出す
+  else when += `<div class="calbtns"><button id="ics">📅 個別に通知</button><button id="icsall">📅 全て乾いたら通知</button></div>` +
+    `<div class="calnote">「個別に通知」は生地ごとの取り込み時刻に、「全て乾いたら通知」は一番遅い取り込み時刻に1回だけ、カレンダーから通知されます。<br>⚠ 時刻を変えて押し直すと予定が二重になるので、前の予定はカレンダーで消してください</div>`;
+  // メール通知はこのPCのOutlookで送るので、スマホでは出さない
+  if (!IS_MOBILE) when += `<div class="notify"><div class="note" style="margin:0">通知先メールアドレス（最大6件）</div>` +
+    [0,1,2,3,4,5].map(i=>`<input class="mail" type="email" placeholder="メールアドレス${i+1}" value="${(mails[i]||"").replace(/"/g,"&quot;")}">`).join("") +
+    `<div class="note">このパソコンのOutlookから送ります。初回はブラウザに「開きますか？」と聞かれるので「開く」を選んでください。</div></div>`;
+  if (maxPP>=40) reason += `（降水確率 最大${maxPP}%、念のため注意）`;
   const spinWhy = spin===8
     ? "よく乾く日なので短め脱水でOK。シワが少なく仕上がります"
-    : (outdoor ? "乾きにくい条件なので長めに脱水して乾燥時間を短縮" : "部屋干しなので長めに脱水して生乾き臭を防止");
+    : (kind==="out" ? "乾きにくい条件なので長めに脱水して乾燥時間を短縮" : "部屋干しなので長めに脱水して生乾き臭を防止");
 
 
   document.getElementById("out").innerHTML = `
@@ -333,7 +348,7 @@ function render(){
     <div class="card">
       <div class="head"><div class="label">取り込む時間帯</div>${btns}</div>
       <div class="verdict">${verdict}</div>
-      ${outdoor ? `<div class="fab">${when}</div>` : `<div class="big" style="color:var(--bad)">${when}</div>`}
+      <div class="fab">${when}</div>
       <div class="why">${reason}</div>
     </div>
     <div class="card spin">
@@ -347,24 +362,24 @@ function render(){
     <div class="label" style="margin-bottom:6px">時間ごとの乾きやすさ（◎よく乾く ○乾く △乾きにくい ×干せない）</div>
     <table>
       <tr><th>時刻</th><th>天気</th><th>気温</th><th>湿度</th><th>降水</th><th>風</th><th>判定</th><th style="width:30%">乾きやすさ</th></tr>
-      ${allH.filter(h=>h.hr>=Math.min(6, outdoor?Math.floor(st):6)).map(h=>`<tr class="${outdoor&&h.hr>=best.a&&h.hr<best.b?'best':''}">
+      ${allH.filter(h=>h.hr>=Math.min(6, Math.floor(st))).map(h=>`<tr class="${outdoor&&h.hr>=best.a&&h.hr<best.b?'best':''}">
         <td>${lab(h.hr)}</td><td>${WX(h.code).split(" ")[0]}</td><td>${h.t.toFixed(0)}℃</td><td>${h.rh}%</td>
         <td>${h.pp}%</td><td>${h.wind.toFixed(1)}m</td>
         <td style="color:${color(h.s)};font-weight:bold">${mark(h.s)}</td>
         <td><div class="bar"><i style="width:${h.s}%;background:${color(h.s)}"></i></div></td></tr>`).join("")}
     </table>
   </div>`;
-  const hb = document.getElementById("hang");
-  if (hb) hb.onclick = () => {
-    if (mode==="hung" && !confirm(`${hm(st)}に干した記録を、いまの時刻に変えますか？`)) return;
-    HUNG = Date.now(); try { localStorage.setItem("sentaku-hung", HUNG); } catch(e){}
+  document.querySelectorAll(".hangbtn").forEach(hb => hb.onclick = () => {
+    const k = hb.dataset.kind, kn = {out:"外干し", in:"部屋干し"}[k];
+    if (mode==="hung" && !confirm(`${hm(st)}に${KN}した記録を、いまの時刻の${kn}に変えますか？`)) return;
+    HUNG = {t: Date.now(), kind: k}; try { localStorage.setItem("sentaku-hung", JSON.stringify(HUNG)); } catch(e){}
     render();
     // 計算し直した時刻で、選んでおいた通知をそのまま予約する（PCはメール、スマホはカレンダー）。
     // 押したその場で呼ぶので、iPhoneでも「カレンダーに追加」画面が開ける
-    if (AUTO === "off") { alert(`${hm(rel(HUNG))}に干しました。取り込み時刻を計算し直しました。`); return; }
+    if (AUTO === "off") { alert(`${hm(rel(HUNG.t))}に${kn}しました。取り込み時刻を計算し直しました。`); return; }
     const id = (IS_MOBILE ? "ics" : "notify") + (AUTO === "all" ? "all" : "");
     document.getElementById(id)?.click();
-  };
+  });
   const an = document.getElementById("autonotify");
   if (an) an.onchange = e => { AUTO = e.target.value; try { localStorage.setItem("sentaku-autonotify", AUTO); } catch(e){} };
   const uh = document.getElementById("unhang");

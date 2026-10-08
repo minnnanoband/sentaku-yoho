@@ -256,7 +256,7 @@ function render(){
       Array.from({length:22},(_,i)=>i-4).map(hh=>`<option value="${hh}" ${startHr===hh?"selected":""}>${lab(hh)}</option>`).join("") +
       `</select></div>` + when;
     notifyItems = Object.keys(groups).sort().map(key => ({
-      at: key,
+      at: key, day: date, names: groups[key].names,
       subject: `🧺 洗濯物を取り込む時間です（${groups[key].names.join("・")}）`,
       body: `${LOC.name}　${ds}\n${lab(st)}に干した洗濯物の取り込み時間です。\n\n▼ 今取り込むもの\n${groups[key].join("\n")}\n\n▼ この日の予定\n${plan.join("\n")}\n\n― 洗濯物干し予報`
     }));
@@ -360,11 +360,14 @@ function render(){
     if (!items.length) { alert("取り込み時刻はもう過ぎています"); return; }
     const utc = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
     const esc = s => s.replace(/\\/g,"\\\\").replace(/[,;]/g, m => "\\"+m).replace(/\n/g,"\\n");
-    const ev = items.map(it => { const s = new Date(it.at), e = new Date(s.getTime() + 15*60000);
-      return ["BEGIN:VEVENT", `UID:${it.at}-${Math.random().toString(36).slice(2)}@sentaku-yoho`, `DTSTAMP:${utc(new Date())}`,
-        `DTSTART:${utc(s)}`, `DTEND:${utc(e)}`, `SUMMARY:${esc(it.subject)}`, `DESCRIPTION:${esc(it.body)}`,
-        "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(it.subject)}`, "TRIGGER:PT0M", "END:VALARM", "END:VEVENT"].join("\r\n"); });
-    const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//sentaku-yoho//JA", "CALSCALE:GREGORIAN", ...ev, "END:VCALENDAR"].join("\r\n");
+    // ボタンを押すたびに時刻を更新：UIDを「日付＋生地」で固定し、SEQUENCEを増やして同じ予定を上書きする
+    // （同じ時刻の生地が複数あっても通知は1回にするため、アラームは各時刻の先頭の予定だけに付ける）
+    const FID = {薄手:"thin", 普通:"normal", 厚手:"thick", 小物:"small"}, seq = Math.floor(Date.now()/1000);
+    const ev = items.flatMap(it => it.names.map((n, i) => { const s = new Date(it.at), e = new Date(s.getTime() + 15*60000);
+      return ["BEGIN:VEVENT", `UID:${it.day}-${FID[n]||n}@sentaku-yoho`, `SEQUENCE:${seq}`, `DTSTAMP:${utc(new Date())}`,
+        `DTSTART:${utc(s)}`, `DTEND:${utc(e)}`, `SUMMARY:${esc(i ? `🧺 ${n}を取り込む` : it.subject)}`, `DESCRIPTION:${esc(it.body)}`,
+        ...(i ? [] : ["BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(it.subject)}`, "TRIGGER:PT0M", "END:VALARM"]), "END:VEVENT"].join("\r\n"); }));
+    const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//sentaku-yoho//JA", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", ...ev, "END:VCALENDAR"].join("\r\n");
     const url = "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
     // iPhoneのSafariはdownload付きリンクだと何も起きないので、直接開いて「カレンダーに追加」画面を出す
     if (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform))) { location.href = url; return; }

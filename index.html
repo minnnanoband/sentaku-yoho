@@ -110,9 +110,7 @@ tr.best td{background:var(--accent-bg)}
     <input id="q" placeholder="郵便番号 または 地名（例：160-0007、横浜）">
     <button id="search">🔍 検索</button>
     <button id="here">📍 現在地</button>
-    <button id="save">💾 地域を保存</button>
   </div>
-  <div id="saved" class="note" style="margin:-4px 0 10px"></div>
   <div id="hits"></div>
 
   <div class="tabs">
@@ -149,7 +147,7 @@ try { const v = JSON.parse(localStorage.getItem("sentaku-hung")); HUNG = typeof 
 // 「干した！」を押したときに自動で予約する通知：each＝個別に通知、all＝全て乾いたら通知、off＝しない
 let AUTO = "each";
 try { AUTO = localStorage.getItem("sentaku-autonotify") || "each"; } catch(e){}
-// 保存した地域（💾ボタンで保存。開いたときはこれを使う）
+// 前回選んだ地域（選んだときに自動で保存。開いたときはこれを使う）
 let SAVED = null;
 try {
   SAVED = JSON.parse(localStorage.getItem("sentaku-settings"));
@@ -460,6 +458,8 @@ document.getElementById("t1").onclick=()=>{day=1;render()};
 const $ = id => document.getElementById(id);
 function setLoc(name, lat, lon){
   LOC = {name, lat:+(+lat).toFixed(4), lon:+(+lon).toFixed(4)};
+  // 選んだ地域は自動で保存して、次に開いたときもこの地域を出す
+  try { localStorage.setItem("sentaku-settings", JSON.stringify({loc:LOC})); localStorage.removeItem("sentaku-loc"); } catch(e){}
   $("hits").innerHTML = "";
   load();
 }
@@ -509,23 +509,7 @@ $("here").onclick = () => {
     () => { $("hits").textContent = "現在地を取得できませんでした（位置情報の許可を確認してください）"; });
 };
 
-const sameLoc = (a,b) => a && b && a.name===b.name && a.lat===b.lat && a.lon===b.lon;
-function showSaved(){
-  if (!SAVED) { $("saved").textContent = "💾 を押すと、今の地域が次回開いたときの設定になります"; return; }
-  const changed = !sameLoc(SAVED.loc, LOC);
-  $("saved").textContent = `保存中の地域：${SAVED.loc.name}` +
-    (changed ? "（今の表示は保存した地域と違います）" : "");
-}
-$("save").onclick = () => {
-  SAVED = {loc:LOC};
-  try { localStorage.setItem("sentaku-settings", JSON.stringify(SAVED)); localStorage.removeItem("sentaku-loc"); }
-  catch(e){ alert("保存できませんでした（ブラウザの設定を確認してください）"); return; }
-  showSaved();
-  $("saved").textContent += "　✅ 保存しました";
-};
-
 function load(){
-showSaved();
 $("place").textContent = LOC.name;
 $("out").innerHTML = `<div class="card">天気予報を取得中…</div>`;
 fetch(forecastURL()).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(j=>{

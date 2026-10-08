@@ -43,6 +43,8 @@ h1 .pop span:nth-child(even){transform:rotate(5deg) translateY(-2px)}
 .hero .label{font-size:28px;font-weight:normal;color:var(--text);line-height:1.3}   /* 「取り込む時間帯」「脱水時間」の見出し */
 .hero .label{font-size:19px}   /* 「取り込む時間帯」「脱水時間」は同じ小さめの大きさ。取り込むの横に通知ボタン */
 .head{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.head .verdict{margin:0 0 0 8px}   /* 「外干し日和！」などは「取り込む時間帯」の右に並べる */
+.head + .fab{margin-top:8px}
 .head button{padding:5px 9px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;
   font-size:13px;font-weight:bold;font-family:inherit;cursor:pointer}
 .head button:first-of-type{margin-left:auto}
@@ -346,8 +348,7 @@ function render(){
   </div>
   <div class="hero">
     <div class="card">
-      <div class="head"><div class="label">取り込む時間帯</div>${btns}</div>
-      <div class="verdict">${verdict}</div>
+      <div class="head"><div class="label">取り込む時間帯</div><div class="verdict">${verdict}</div>${btns}</div>
       <div class="fab">${when}</div>
       <div class="why">${reason}</div>
     </div>

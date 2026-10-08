@@ -126,7 +126,7 @@ tr.best td{background:var(--accent-bg)}
 
   <div class="note">
     データ: Open-Meteo（気象庁モデル等）。判定の目安: 乾きやすさ指数＝飽差（空気がどれだけ水分を吸えるか）・日射・風・気温から計算し、降水確率で減点。<br>
-    脱水時間（外干し・部屋干し別）: 日中の平均湿度に応じて <b>8〜12分</b>。湿度が低いほど短く（シワを抑える）、高いほど長く（水分を多く飛ばして生乾きを防ぐ）。外干しは湿度50%以下で8分〜80%以上で12分を基準に、風が弱い日（平均1.5m未満）は+1分、やや強い日（3〜5m）は-1分、強い日（5m以上）は-2分（外で乾きにくい日は12分）。部屋干しは湿度40%以下で8分〜70%以上で12分（外の風は関係しないので湿度だけで決めます）。
+    脱水時間（外干し・部屋干し別）: 日中の平均湿度に応じて <b>8〜12分</b>。湿度が低いほど短く（シワを抑える）、高いほど長く（水分を多く飛ばして生乾きを防ぐ）。外干しは湿度50%以下で8分〜80%以上で12分を基準に、風が弱い日（平均1.5m未満）は+1分、やや強い日（3〜5m）は-1分、強い日（5m以上）は-2分（外で乾きにくい日は12分）。部屋干しは湿度40%以下で8分〜70%以上で12分（外の風は関係しません）。気温でも外干し・部屋干しとも、寒い日（日中平均10℃未満）は+1分、暑い日（25℃以上）は-1分。
   </div>
   <!-- ページの一番下：乾く時間は目安であることの注意書き -->
   <div class="note" style="margin-top:10px">
@@ -269,8 +269,12 @@ function render(){
   const spinBy = (rh, lo) => Math.max(8, Math.min(12, Math.round(8 + (rh-lo)/30*4)));
   const windAdj = avgWind < 1.5 ? 1 : avgWind < 3 ? 0 : avgWind < 5 ? -1 : -2;
   const windWord = avgWind < 1.5 ? "風が弱い" : avgWind < 3 ? "風はふつう" : avgWind < 5 ? "風がやや強い" : "風が強い";
-  const spinOut = outdoor ? Math.max(8, Math.min(12, spinBy(avgRH, 50) + windAdj)) : 12;
-  const spinIn = spinBy(avgRH, 40);
+  // 気温でも変える（外干し・部屋干しとも）：寒い(10℃未満)+1分、ふつう(10〜25℃)±0、暑い(25℃以上)-1分
+  const tempAdj = avgT < 10 ? 1 : avgT < 25 ? 0 : -1;
+  const tempWord = avgT < 10 ? "寒い" : avgT < 25 ? "気温ふつう" : "暑い";
+  const clampSpin = m => Math.max(8, Math.min(12, m));
+  const spinOut = outdoor ? clampSpin(spinBy(avgRH, 50) + windAdj + tempAdj) : 12;
+  const spinIn = clampSpin(spinBy(avgRH, 40) + tempAdj);
 
   const d = new Date(date+"T00:00:00");
   const ds = `${d.getMonth()+1}月${d.getDate()}日（${"日月火水木金土"[d.getDay()]}）`;
@@ -342,8 +346,8 @@ function render(){
   if (maxPP>=40) reason += `（降水確率 最大${maxPP}%、念のため注意）`;
   const spinWord = m => m<=9 ? "短め" : m===10 ? "ふつう" : "長め";
   const whyOut = !outdoor ? "外では乾きにくい日です（部屋干しがおすすめ）。干すなら長めに脱水"
-    : `湿度${avgRH}%・${windWord}（平均${avgWind}m）。` + (spinOut<=9 ? "よく乾く日なので短め脱水でOK。シワが少なく仕上がります" : spinOut===10 ? "ふつうの乾き具合なので標準の脱水で" : "湿度が高めなので長めに脱水して乾燥時間を短縮");
-  const whyIn = `湿度${avgRH}%。` + (spinIn<=9 ? "空気が乾いているので部屋干しでも短めでOK。シワを抑えられます" : spinIn===10 ? "部屋干しなので標準の脱水で" : "湿度が高めなので長めに脱水して生乾き臭を防止");
+    : `湿度${avgRH}%・${windWord}（平均${avgWind}m）・${tempWord}（平均${avgT}℃）。` + (spinOut<=9 ? "よく乾く日なので短め脱水でOK。シワが少なく仕上がります" : spinOut===10 ? "ふつうの乾き具合なので標準の脱水で" : "湿度が高めなので長めに脱水して乾燥時間を短縮");
+  const whyIn = `湿度${avgRH}%・${tempWord}（平均${avgT}℃）。` + (spinIn<=9 ? "空気が乾いているので部屋干しでも短めでOK。シワを抑えられます" : spinIn===10 ? "部屋干しなので標準の脱水で" : "湿度が高めなので長めに脱水して生乾き臭を防止");
   const spinRow = (k, ic, t, m, why) => `<div class="spinrow ${k===kind?"cur":""}">
       <div class="spinkind">${ic} ${t}${k===kind?`<span class="spincur">${hung?"いまの干し方":"おすすめ"}</span>`:""}</div>
       <div class="big">${m}分</div>

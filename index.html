@@ -46,9 +46,11 @@ h1 .pop span:nth-child(even){transform:rotate(5deg) translateY(-2px)}
 .head button{padding:5px 9px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;
   font-size:13px;font-weight:bold;font-family:inherit;cursor:pointer}
 .head button:first-of-type{margin-left:auto}
-/* スマホの通知ボタン2つは同じ幅で横に並べ、折り返すときも2つ一緒に右寄せ */
-.head .btns{margin-left:auto;display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.head .btns button{margin:0;white-space:nowrap}
+/* スマホの通知ボタン2つは厚手の下に同じ幅で横に並べ、その下に注意事項 */
+.calbtns{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.calbtns button{padding:9px 6px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;
+  font-size:14px;font-weight:bold;font-family:inherit;cursor:pointer;white-space:nowrap}
+.calnote{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
 .big{font-size:40px;font-weight:bold;line-height:1.2}
 .verdict{font-size:20px;font-weight:bold;margin-top:4px}
 .why{font-size:13px;color:var(--muted);margin-top:6px}
@@ -271,12 +273,11 @@ function render(){
     };
     // 通知先は最大6件（このブラウザに保存）
     let mails = []; try { mails = JSON.parse(localStorage.getItem("sentaku-mails") || "[]"); } catch(e){}
-    // 通知ボタンは見出し「取り込む時間帯」の横に置く
-    btns = IS_MOBILE
-      ? `<div class="btns"><button id="ics">📅 個別に通知</button><button id="icsall">📅 全て乾いたら通知</button></div>` +
-        // スマホはカレンダーの通知で知らせる。注意事項はボタンのすぐ下に出す
-        `<div class="note" style="width:100%">「個別に通知」は生地ごとの取り込み時刻に、「全て乾いたら通知」は一番遅い取り込み時刻に1回だけ、カレンダーから通知されます。<br>⚠ 時刻を変えて押し直すと予定が二重になるので、前の予定はカレンダーで消してください</div>`
-      : `<button id="notify">📧 メールで知らせる</button>`;
+    // PCのメール通知ボタンは見出し「取り込む時間帯」の横に置く
+    if (!IS_MOBILE) btns = `<button id="notify">📧 メールで知らせる</button>`;
+    // スマホはカレンダーの通知で知らせる。ボタン2つは厚手の下に横に並べ、注意事項はそのすぐ下に出す
+    else when += `<div class="calbtns"><button id="ics">📅 個別に通知</button><button id="icsall">📅 全て乾いたら通知</button></div>` +
+      `<div class="calnote">「個別に通知」は生地ごとの取り込み時刻に、「全て乾いたら通知」は一番遅い取り込み時刻に1回だけ、カレンダーから通知されます。<br>⚠ 時刻を変えて押し直すと予定が二重になるので、前の予定はカレンダーで消してください</div>`;
     // メール通知はこのPCのOutlookで送るので、スマホでは出さない
     if (!IS_MOBILE) when += `<div class="notify"><div class="note" style="margin:0">通知先メールアドレス（最大6件）</div>` +
       [0,1,2,3,4,5].map(i=>`<input class="mail" type="email" placeholder="メールアドレス${i+1}" value="${(mails[i]||"").replace(/"/g,"&quot;")}">`).join("") +

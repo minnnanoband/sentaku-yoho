@@ -158,7 +158,7 @@ const color = s => s>=60?"var(--good)":s>=40?"var(--ok)":"var(--bad)";
 const mark  = s => s>=60?"◎":s>=40?"○":s>=20?"△":"×";
 
 const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
-let notifyItems = [];
+let notifyItems = [], allDryItem = null;
 // スマホ通知（ntfy）のトピック名：端末ごとにランダムに作って保存（他の人と混ざらないように）
 let TOPIC = "";
 try { TOPIC = localStorage.getItem("sentaku-topic") || ""; } catch(e){}
@@ -260,13 +260,19 @@ function render(){
       subject: `🧺 洗濯物を取り込む時間です（${groups[key].names.join("・")}）`,
       body: `${LOC.name}　${ds}\n${lab(st)}に干した洗濯物の取り込み時間です。\n\n▼ 今取り込むもの\n${groups[key].join("\n")}\n\n▼ この日の予定\n${plan.join("\n")}\n\n― 洗濯物干し予報`
     }));
+    // 「全て乾いたら通知」用：一番遅い取り込み時刻に1回だけ、全部まとめて知らせる
+    const lastKey = Object.keys(groups).sort().pop();
+    allDryItem = { at: lastKey, day: date, all: true, names: Object.values(groups).flatMap(g => g.names),
+      subject: `🧺 洗濯物が全部乾きました（取り込み時間です）`,
+      body: `${LOC.name}　${ds}\n${lab(st)}に干した洗濯物が全部乾く時間です。まとめて取り込んでください。\n\n▼ この日の予定\n${plan.join("\n")}\n\n― 洗濯物干し予報`
+    };
     // 通知先は最大6件（このブラウザに保存）
     let mails = []; try { mails = JSON.parse(localStorage.getItem("sentaku-mails") || "[]"); } catch(e){}
     // 通知ボタンは見出し「取り込む時間帯」の横に置く
     btns = IS_MOBILE
-      ? `<button id="ics">📅 カレンダーに通知予約</button>` +
+      ? `<button id="ics">📅 個別に通知</button><button id="icsall">📅 全て乾いたら通知</button>` +
         // スマホはカレンダーの通知で知らせる。注意事項はボタンのすぐ下に出す
-        `<div class="note" style="width:100%">取り込み時刻にカレンダーから通知されます。<br>⚠ 時刻を変えて押し直すと予定が二重になるので、前の予定はカレンダーで消してください</div>`
+        `<div class="note" style="width:100%">「個別に通知」は生地ごとの取り込み時刻に、「全て乾いたら通知」は一番遅い取り込み時刻に1回だけ、カレンダーから通知されます。<br>⚠ 時刻を変えて押し直すと予定が二重になるので、前の予定はカレンダーで消してください</div>`
       : `<button id="notify">📧 メールで知らせる</button>`;
     // メール通知はこのPCのOutlookで送るので、スマホでは出さない
     if (!IS_MOBILE) when += `<div class="notify"><div class="note" style="margin:0">通知先メールアドレス（最大6件）</div>` +
@@ -353,9 +359,7 @@ function render(){
     } catch(e) { alert("通知を予約できませんでした（インターネット接続を確認してください）"); }
     pb.disabled = false;
   };
-  const ib = document.getElementById("ics");
-  if (ib) ib.onclick = () => {
-    const items = futureItems();
+  const addIcs = items => {
     if (!items.length) { alert("取り込み時刻はもう過ぎています"); return; }
     // iPhoneのカレンダーは入れ直しても上書きされず二重になるので、前に入れた予定がまだ先なら消すよう案内する
     let prev = []; try { prev = JSON.parse(localStorage.getItem("sentaku-ics") || "[]"); } catch(e){}
@@ -369,7 +373,8 @@ function render(){
     // ボタンを押すたびに時刻を更新：UIDを「日付＋生地」で固定し、SEQUENCEを増やして同じ予定を上書きする
     // （同じ時刻の生地が複数あっても通知は1回にするため、アラームは各時刻の先頭の予定だけに付ける）
     const FID = {薄手:"thin", 普通:"normal", 厚手:"thick", 小物:"small"}, seq = Math.floor(Date.now()/1000);
-    const ev = items.flatMap(it => it.names.map((n, i) => { const s = new Date(it.at), e = new Date(s.getTime() + 15*60000);
+    // 「全て乾いたら通知」は予定を1件だけ作る（UIDは「日付-all」）
+    const ev = items.flatMap(it => (it.all ? ["all"] : it.names).map((n, i) => { const s = new Date(it.at), e = new Date(s.getTime() + 15*60000);
       return ["BEGIN:VEVENT", `UID:${it.day}-${FID[n]||n}@sentaku-yoho`, `SEQUENCE:${seq}`, `DTSTAMP:${utc(new Date())}`,
         `DTSTART:${utc(s)}`, `DTEND:${utc(e)}`, `SUMMARY:${esc(i ? `🧺 ${n}を取り込む` : it.subject)}`, `DESCRIPTION:${esc(it.body)}`,
         ...(i ? [] : ["BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(it.subject)}`, "TRIGGER:PT0M", "END:VALARM"]), "END:VEVENT"].join("\r\n"); }));
@@ -382,6 +387,10 @@ function render(){
     a.download = "洗濯物の取り込み.ics";
     document.body.appendChild(a); a.click(); a.remove();
   };
+  const ib = document.getElementById("ics");
+  if (ib) ib.onclick = () => addIcs(futureItems());
+  const ia = document.getElementById("icsall");
+  if (ia) ia.onclick = () => addIcs(allDryItem && new Date(allDryItem.at) > new Date() ? [allDryItem] : []);
   const ct = document.getElementById("copytopic");
   if (ct) ct.onclick = e => { e.preventDefault();
     navigator.clipboard?.writeText(TOPIC).then(() => alert("コピーしました：" + TOPIC), () => prompt("トピック名", TOPIC)) ?? prompt("トピック名", TOPIC); };

@@ -48,11 +48,7 @@ h1 .pop span:nth-child(even){transform:rotate(5deg) translateY(-2px)}
 .head button{padding:5px 9px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;
   font-size:13px;font-weight:bold;font-family:inherit;cursor:pointer}
 .head button:first-of-type{margin-left:auto}
-/* スマホの通知ボタン2つは厚手の下に同じ幅で横に並べ、その下に注意事項 */
-.calbtns{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-.calbtns button{padding:9px 6px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;
-  font-size:14px;font-weight:bold;font-family:inherit;cursor:pointer;white-space:nowrap}
-.calnote{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+.calnote{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
 .big{font-size:40px;font-weight:bold;line-height:1.2}
 .verdict{font-size:20px;font-weight:bold;margin-top:4px}
 .why{font-size:13px;color:var(--muted);margin-top:6px}
@@ -308,7 +304,12 @@ function render(){
     // 干したボタンを押したときに自動で予約する通知の種類（この端末に保存）
     `<div class="auto">干したら自動で：<select id="autonotify">` +
     [["each","個別に通知"],["all","全て乾いたら通知"],["off","通知しない"]].map(([v,t])=>`<option value="${v}" ${AUTO===v?"selected":""}>${t}</option>`).join("") +
-    `</select></div></div>` + when;
+    `</select></div>` +
+    // 通知はボタンではなく、干したボタンを押したときに自動で予約する（PCはメール、スマホはカレンダー）
+    `<div class="calnote">「個別に通知」は生地ごとの取り込み時刻に、「全て乾いたら通知」は一番遅い取り込み時刻に1回だけ、` +
+    (IS_MOBILE ? `カレンダーから通知されます。<br>⚠ 押し直すと予定が二重になるので、前の予定はカレンダーで消してください`
+               : `メールで知らせます。<br>⚠ 押し直すと前の予約は取り消されて、新しい予約に置き換わります`) +
+    `</div></div>` + when;
   notifyItems = Object.keys(groups).sort().map(key => ({
     at: key, day: date, names: groups[key].names,
     subject: `🧺 洗濯物を取り込む時間です（${groups[key].names.join("・")}）`,
@@ -322,12 +323,6 @@ function render(){
   };
   // 通知先は最大6件（このブラウザに保存）
   let mails = []; try { mails = JSON.parse(localStorage.getItem("sentaku-mails") || "[]"); } catch(e){}
-  // PCはメール通知。スマホと同じく、ボタン2つを厚手の下に横に並べ、注意事項はそのすぐ下に出す
-  if (!IS_MOBILE) when += `<div class="calbtns"><button id="notify">📧 個別に通知</button><button id="notifyall">📧 全て乾いたら通知</button></div>` +
-    `<div class="calnote">「個別に通知」は生地ごとの取り込み時刻に、「全て乾いたら通知」は一番遅い取り込み時刻に1回だけ、メールで知らせます。<br>⚠ 押し直すと前の予約は取り消されて、新しい予約に置き換わります</div>`;
-  // スマホはカレンダーの通知で知らせる。ボタン2つは厚手の下に横に並べ、注意事項はそのすぐ下に出す
-  else when += `<div class="calbtns"><button id="ics">📅 個別に通知</button><button id="icsall">📅 全て乾いたら通知</button></div>` +
-    `<div class="calnote">「個別に通知」は生地ごとの取り込み時刻に、「全て乾いたら通知」は一番遅い取り込み時刻に1回だけ、カレンダーから通知されます。<br>⚠ 時刻を変えて押し直すと予定が二重になるので、前の予定はカレンダーで消してください</div>`;
   // メール通知はこのPCのOutlookで送るので、スマホでは出さない
   if (!IS_MOBILE) when += `<div class="notify"><div class="note" style="margin:0">通知先メールアドレス（最大6件）</div>` +
     [0,1,2,3,4,5].map(i=>`<input class="mail" type="email" placeholder="メールアドレス${i+1}" value="${(mails[i]||"").replace(/"/g,"&quot;")}">`).join("") +
@@ -378,8 +373,8 @@ function render(){
     // 計算し直した時刻で、選んでおいた通知をそのまま予約する（PCはメール、スマホはカレンダー）。
     // 押したその場で呼ぶので、iPhoneでも「カレンダーに追加」画面が開ける
     if (AUTO === "off") { alert(`${hm(rel(HUNG.t))}に${kn}しました。取り込み時刻を計算し直しました。`); return; }
-    const id = (IS_MOBILE ? "ics" : "notify") + (AUTO === "all" ? "all" : "");
-    document.getElementById(id)?.click();
+    const items = AUTO === "all" ? (allDryItem ? [allDryItem] : []) : notifyItems;
+    if (IS_MOBILE) addIcs(items.filter(it => new Date(it.at) > new Date())); else sendMail(items);
   });
   const an = document.getElementById("autonotify");
   if (an) an.onchange = e => { AUTO = e.target.value; try { localStorage.setItem("sentaku-autonotify", AUTO); } catch(e){} };
@@ -397,10 +392,6 @@ function render(){
     let bin = ""; bytes.forEach(b => bin += String.fromCharCode(b));
     location.href = "sentaku-mail:" + btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
   };
-  const nb = document.getElementById("notify");
-  if (nb) nb.onclick = () => sendMail(notifyItems);
-  const na = document.getElementById("notifyall");
-  if (na) na.onclick = () => sendMail(allDryItem ? [allDryItem] : []);
   const futureItems = () => notifyItems.filter(it => new Date(it.at) > new Date());
   const pb = document.getElementById("push");
   if (pb) pb.onclick = async () => {
@@ -455,10 +446,6 @@ function render(){
     a.download = "洗濯物の取り込み.ics";
     document.body.appendChild(a); a.click(); a.remove();
   };
-  const ib = document.getElementById("ics");
-  if (ib) ib.onclick = () => addIcs(futureItems());
-  const ia = document.getElementById("icsall");
-  if (ia) ia.onclick = () => addIcs(allDryItem && new Date(allDryItem.at) > new Date() ? [allDryItem] : []);
   const ct = document.getElementById("copytopic");
   if (ct) ct.onclick = e => { e.preventDefault();
     navigator.clipboard?.writeText(TOPIC).then(() => alert("コピーしました：" + TOPIC), () => prompt("トピック名", TOPIC)) ?? prompt("トピック名", TOPIC); };

@@ -86,6 +86,9 @@ tr.best td{background:var(--accent-bg)}
   font-size:20px;font-weight:bold;font-family:inherit;cursor:pointer}
 .hang button:disabled{background:var(--line);color:var(--muted);cursor:default;font-size:15px}
 .hang a{color:var(--accent);margin-left:6px}
+.hang .auto{margin-top:4px}
+.hang select{padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);
+  font-size:13px;font-family:inherit}
 .notify{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;border:0 !important}
 .notify input,.notify button{padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);
   font-size:13px;font-family:inherit}
@@ -140,6 +143,9 @@ let LOC = {name:"新宿区荒木町", lat:35.6905, lon:139.7215};
 // 「干した！」を押した日時（ミリ秒）。この端末に保存し、その日の取り込み時刻の計算に使う
 let HUNG = null;
 try { HUNG = +localStorage.getItem("sentaku-hung") || null; } catch(e){}
+// 「干した！」を押したときに自動で予約する通知：each＝個別に通知、all＝全て乾いたら通知、off＝しない
+let AUTO = "each";
+try { AUTO = localStorage.getItem("sentaku-autonotify") || "each"; } catch(e){}
 // 保存した地域（💾ボタンで保存。開いたときはこれを使う）
 let SAVED = null;
 try {
@@ -280,7 +286,11 @@ function render(){
       : `今は${stTxt}の目安です`;
     when = `<div class="hang"><button id="hang" ${canHang ? "" : "disabled"}>` +
       (canHang ? (mode==="hung" ? "👕 干した！（押し直す）" : "👕 干した！") : nowRel < -4 ? "前日20時から押せます" : "今日の干す時間は終わりました") +
-      `</button>${hangNote}</div>` + when;
+      `</button>${hangNote}` +
+      // 「干した！」を押したときに自動で予約する通知の種類（この端末に保存）
+      `<div class="auto">干したら自動で：<select id="autonotify">` +
+      [["each","個別に通知"],["all","全て乾いたら通知"],["off","通知しない"]].map(([v,t])=>`<option value="${v}" ${AUTO===v?"selected":""}>${t}</option>`).join("") +
+      `</select></div></div>` + when;
     notifyItems = Object.keys(groups).sort().map(key => ({
       at: key, day: date, names: groups[key].names,
       subject: `🧺 洗濯物を取り込む時間です（${groups[key].names.join("・")}）`,
@@ -346,12 +356,17 @@ function render(){
   </div>`;
   const hb = document.getElementById("hang");
   if (hb) hb.onclick = () => {
-    // 押し直すと前の通知予約と時刻がずれるので、通知ボタンも押し直すよう案内する
     if (mode==="hung" && !confirm(`${hm(st)}に干した記録を、いまの時刻に変えますか？`)) return;
     HUNG = Date.now(); try { localStorage.setItem("sentaku-hung", HUNG); } catch(e){}
     render();
-    alert(`${hm(rel(HUNG))}に干しました。取り込み時刻を計算し直しました。\n通知がほしいときは、下の通知ボタンを押してください。`);
+    // 計算し直した時刻で、選んでおいた通知をそのまま予約する（PCはメール、スマホはカレンダー）。
+    // 押したその場で呼ぶので、iPhoneでも「カレンダーに追加」画面が開ける
+    if (AUTO === "off") { alert(`${hm(rel(HUNG))}に干しました。取り込み時刻を計算し直しました。`); return; }
+    const id = (IS_MOBILE ? "ics" : "notify") + (AUTO === "all" ? "all" : "");
+    document.getElementById(id)?.click();
   };
+  const an = document.getElementById("autonotify");
+  if (an) an.onchange = e => { AUTO = e.target.value; try { localStorage.setItem("sentaku-autonotify", AUTO); } catch(e){} };
   const uh = document.getElementById("unhang");
   if (uh) uh.onclick = e => { e.preventDefault(); HUNG = null; try { localStorage.removeItem("sentaku-hung"); } catch(e){} render(); };
   const sendMail = items => {

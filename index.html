@@ -94,8 +94,9 @@ tr.best td{background:var(--accent-bg)}
 .hang button:disabled{background:var(--line);color:var(--muted);cursor:default;font-size:15px}
 .hang a{color:var(--accent);margin-left:6px}
 .hang .auto{margin-top:4px}
-.hang .past{margin:2px 0 4px}
-.hang select,.hang input[type=time]{padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);
+.hang .past{margin:0 0 6px;font-size:15px;color:var(--text)}
+.hang .past select{font-size:15px;padding:6px 8px}
+.hang select{padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);
   font-size:13px;font-family:inherit}
 .notify{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;border:0 !important}
 .notify input,.notify button{padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);
@@ -151,6 +152,7 @@ let HUNG = null;
 try { const v = JSON.parse(localStorage.getItem("sentaku-hung")); HUNG = typeof v === "number" ? {t:v, kind:"out"} : v?.t ? v : null; } catch(e){}
 // 「干した！」を押したときに自動で予約する通知：each＝個別に通知、all＝全て乾いたら通知、off＝しない
 let AUTO = "each";
+let HANG_SEL = "now";   // 「干した時刻」の選択（"now" か、この日の0時からの時間数）。押したら「いま」に戻す
 try { AUTO = localStorage.getItem("sentaku-autonotify") || "each"; } catch(e){}
 // 前回選んだ地域（選んだときに自動で保存。開いたときはこれを使う）
 let SAVED = null;
@@ -311,14 +313,21 @@ function render(){
   }
   // 「外干しした！」「部屋干しした！」ボタンは一番上に。押した時刻と干し方から取り込み時刻を計算し直す
   const hangNote = mode==="hung" ? `✅ ${hm(st)}に${KN}しました（この時刻から計算しています）<a href="#" id="unhang">取り消す</a>`
-    : canHang ? `干したら押してください。押した時刻から取り込み時刻を計算します（今は${stTxt}の目安）`
-    : nowRel >= 18 ? `今日の干す時間は終わりました。押し忘れたときは、干した時刻を入れてから押してください（今は${stTxt}の目安）`
+    : canHang ? `干した時刻を選んで押してください。その時刻から取り込み時刻を計算します（今は${stTxt}の目安）`
+    : nowRel >= 18 ? `今日の干す時間は終わりました。干し忘れの記録は、干した時刻を選んで押してください（今は${stTxt}の目安）`
     : `今は${stTxt}の目安です`;
-  // 押し忘れたとき用：干した時刻を入れてからボタンを押すと、その時刻に干したことにする（18時以降も入力すれば押せる）
+  // 干した時刻：「いま」か、前日20時〜18時の30分ごと。まだ来ていない時刻は選べない（18時以降は「いま」も選べない）
+  const slots = []; for (let r = -4; r < 18; r += 0.5) slots.push(r);
+  const pastSlots = slots.filter(r => r <= nowRel);
+  let sel = HANG_SEL;
+  if (sel === "now" ? !canHang : !pastSlots.includes(sel)) sel = canHang ? "now" : pastSlots[pastSlots.length-1];
+  const hangSel = `<div class="past">干した時刻：<select id="hangtime">` +
+    `<option value="now" ${sel==="now"?"selected":""} ${canHang?"":"disabled"}>いま</option>` +
+    slots.map(r => `<option value="${r}" ${sel===r?"selected":""} ${r>nowRel?"disabled":""}>${hm(r)}</option>`).join("") +
+    `</select></div>`;
   when = `<div class="hang">` +
-    (nowRel >= -4 ? `<div class="hangbtns">` +
-      [["out","☀️","外干しした！"],["in","🏠","部屋干しした！"]].map(([k,ic,t])=>`<button class="hangbtn ${k}" data-kind="${k}">${ic} ${t}</button>`).join("") + `</div>` +
-      `<div class="past">押し忘れたとき：<input type="time" id="hangtime" step="300">に干した（空欄＝いま）</div>`
+    (nowRel >= -4 ? hangSel + `<div class="hangbtns">` +
+      [["out","☀️","外干しした！"],["in","🏠","部屋干しした！"]].map(([k,ic,t])=>`<button class="hangbtn ${k}" data-kind="${k}">${ic} ${t}</button>`).join("") + `</div>`
       : `<button disabled>前日20時から押せます</button>`) +
     hangNote +
     // 干したボタンを押したときに自動で予約する通知の種類（この端末に保存）
@@ -392,19 +401,16 @@ function render(){
   </div>`;
   document.querySelectorAll(".hangbtn").forEach(hb => hb.onclick = () => {
     const k = hb.dataset.kind, kn = {out:"外干し", in:"部屋干し"}[k];
-    // 時刻が入っていればその時刻（未来になるなら前日の夜とみなす）、空欄ならいま
+    // 選んだ時刻（「いま」ならこの瞬間）。開きっぱなしで時間が経っても、先の時刻にはしない
+    const tv = document.getElementById("hangtime")?.value || "now";
     let t = Date.now();
-    const tv = document.getElementById("hangtime")?.value;
-    if (tv) {
-      const [h, m] = tv.split(":").map(Number), d0 = new Date(date+"T00:00:00");
-      d0.setHours(h, m);
-      if (d0.getTime() > Date.now()) d0.setDate(d0.getDate() - 1);
-      const r = rel(d0.getTime());
-      if (d0.getTime() > Date.now() || r < -4 || r >= 18) { alert("干した時刻は、前日20時〜当日18時の、いまより前の時刻を入れてください"); return; }
-      t = d0.getTime();
-    } else if (!canHang) { alert("今日の干す時間は終わりました。押し忘れたときは、干した時刻を入れてから押してください"); return; }
-    const whenTxt = tv ? `${hm(rel(t))}の` : "いまの時刻の";
+    if (tv !== "now") {
+      t = new Date(date+"T00:00:00").getTime() + Number(tv) * 3600000;
+      if (t > Date.now()) { alert("まだ来ていない時刻は選べません"); return; }
+    } else if (rel(t) >= 18) { alert("今日の干す時間は終わりました。干した時刻を選んでから押してください"); return; }
+    const whenTxt = tv !== "now" ? `${hm(rel(t))}の` : "いまの時刻の";
     if (mode==="hung" && !confirm(`${hm(st)}に${KN}した記録を、${whenTxt}${kn}に変えますか？`)) return;
+    HANG_SEL = "now";
     HUNG = {t, kind: k}; try { localStorage.setItem("sentaku-hung", JSON.stringify(HUNG)); } catch(e){}
     render();
     // 計算し直した時刻で、選んでおいた通知をそのまま予約する（PCはメール、スマホはカレンダー）。
@@ -413,6 +419,8 @@ function render(){
     const items = AUTO === "all" ? (allDryItem ? [allDryItem] : []) : notifyItems;
     if (IS_MOBILE) addIcs(items.filter(it => new Date(it.at) > new Date())); else sendMail(items);
   });
+  const hs = document.getElementById("hangtime");
+  if (hs) hs.onchange = e => { HANG_SEL = e.target.value === "now" ? "now" : Number(e.target.value); };
   const an = document.getElementById("autonotify");
   if (an) an.onchange = e => { AUTO = e.target.value; try { localStorage.setItem("sentaku-autonotify", AUTO); } catch(e){} };
   const uh = document.getElementById("unhang");

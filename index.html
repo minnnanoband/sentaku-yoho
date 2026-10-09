@@ -41,7 +41,8 @@ h1 .pop span:nth-child(even){transform:rotate(5deg) translateY(-2px)}
 @media (max-width:600px){.hero{grid-template-columns:1fr}}
 .label{font-size:13px;color:var(--muted)}
 .hero .label{font-size:28px;font-weight:normal;color:var(--text);line-height:1.3}   /* 「取り込む時間帯」「脱水時間」の見出し */
-.hero .label{font-size:19px}   /* 「取り込む時間帯」「脱水時間」は同じ小さめの大きさ。取り込むの横に通知ボタン */
+.hero .label,.hangcard .label{font-size:19px;color:var(--text)}
+.hangcard .hang{margin:6px 0 0}   /* 「取り込む時間帯」「脱水時間」は同じ小さめの大きさ。取り込むの横に通知ボタン */
 .head{display:flex;flex-wrap:wrap;align-items:center;gap:2px 14px}
 .head .verdict{margin:0}   /* 「外干し日和！」などは「取り込む時間帯」の右に並べる */
 .head + .fab{margin-top:8px}
@@ -325,7 +326,8 @@ function render(){
     `<option value="now" ${sel==="now"?"selected":""} ${canHang?"":"disabled"}>いま</option>` +
     slots.map(r => `<option value="${r}" ${sel===r?"selected":""} ${r>nowRel?"disabled":""}>${hm(r)}</option>`).join("") +
     `</select></div>`;
-  when = `<div class="hang">` +
+  // 「干した時刻・通知」は取り込む時間帯とは別の枠に出す
+  let hangBox = `<div class="hang">` +
     (nowRel >= -4 ? hangSel + `<div class="hangbtns">` +
       [["out","☀️","外干しした！"],["in","🏠","部屋干しした！"]].map(([k,ic,t])=>`<button class="hangbtn ${k}" data-kind="${k}">${ic} ${t}</button>`).join("") + `</div>`
       : `<button disabled>前日20時から押せます</button>`) +
@@ -338,7 +340,7 @@ function render(){
     `<div class="calnote">「個別に通知」は生地ごとの取り込み時刻に、「全て乾いたら通知」は一番遅い取り込み時刻に1回だけ、` +
     (IS_MOBILE ? `カレンダーから通知されます。<br>⚠ 押し直すと予定が二重になるので、前の予定はカレンダーで消してください`
                : `メールで知らせます。<br>⚠ 押し直すと前の予約は取り消されて、新しい予約に置き換わります`) +
-    `</div></div>` + when;
+    `</div></div>`;
   notifyItems = Object.keys(groups).sort().map(key => ({
     at: key, day: date, names: groups[key].names,
     subject: `🧺 洗濯物を取り込む時間です（${groups[key].names.join("・")}）`,
@@ -353,7 +355,7 @@ function render(){
   // 通知先は最大6件（このブラウザに保存）
   let mails = []; try { mails = JSON.parse(localStorage.getItem("sentaku-mails") || "[]"); } catch(e){}
   // メール通知はこのPCのOutlookで送るので、スマホでは出さない
-  if (!IS_MOBILE) when += `<div class="notify"><div class="note" style="margin:0">通知先メールアドレス（最大6件）</div>` +
+  if (!IS_MOBILE) hangBox += `<div class="notify"><div class="note" style="margin:0">通知先メールアドレス（最大6件）</div>` +
     [0,1,2,3,4,5].map(i=>`<input class="mail" type="email" placeholder="メールアドレス${i+1}" value="${(mails[i]||"").replace(/"/g,"&quot;")}">`).join("") +
     `<div class="note">このパソコンのOutlookから送ります。初回はブラウザに「開きますか？」と聞かれるので「開く」を選んでください。</div></div>`;
   if (maxPP>=40) reason += `（降水確率 最大${maxPP}%、念のため注意）`;
@@ -375,6 +377,10 @@ function render(){
     <span>気温 ${D.temperature_2m_min[di]}〜${D.temperature_2m_max[di]}℃</span>
     <span>日中湿度 平均${avgRH}%</span>
     <span>降水確率 最大${D.precipitation_probability_max[di]??maxPP}%</span>
+  </div>
+  <div class="card hangcard">
+    <div class="label">干した時刻・通知</div>
+    ${hangBox}
   </div>
   <div class="hero">
     <div class="card">

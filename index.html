@@ -94,7 +94,8 @@ tr.best td{background:var(--accent-bg)}
 .hang button:disabled{background:var(--line);color:var(--muted);cursor:default;font-size:15px}
 .hang a{color:var(--accent);margin-left:6px}
 .hang .auto{margin-top:4px}
-.hang select{padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);
+.hang .past{margin:2px 0 4px}
+.hang select,.hang input[type=time]{padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);
   font-size:13px;font-family:inherit}
 .notify{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;border:0 !important}
 .notify input,.notify button{padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);
@@ -311,11 +312,14 @@ function render(){
   // 「外干しした！」「部屋干しした！」ボタンは一番上に。押した時刻と干し方から取り込み時刻を計算し直す
   const hangNote = mode==="hung" ? `✅ ${hm(st)}に${KN}しました（この時刻から計算しています）<a href="#" id="unhang">取り消す</a>`
     : canHang ? `干したら押してください。押した時刻から取り込み時刻を計算します（今は${stTxt}の目安）`
+    : nowRel >= 18 ? `今日の干す時間は終わりました。押し忘れたときは、干した時刻を入れてから押してください（今は${stTxt}の目安）`
     : `今は${stTxt}の目安です`;
+  // 押し忘れたとき用：干した時刻を入れてからボタンを押すと、その時刻に干したことにする（18時以降も入力すれば押せる）
   when = `<div class="hang">` +
-    (canHang ? `<div class="hangbtns">` +
-      [["out","☀️","外干しした！"],["in","🏠","部屋干しした！"]].map(([k,ic,t])=>`<button class="hangbtn ${k}" data-kind="${k}">${ic} ${t}</button>`).join("") + `</div>`
-      : `<button disabled>${nowRel < -4 ? "前日20時から押せます" : "今日の干す時間は終わりました"}</button>`) +
+    (nowRel >= -4 ? `<div class="hangbtns">` +
+      [["out","☀️","外干しした！"],["in","🏠","部屋干しした！"]].map(([k,ic,t])=>`<button class="hangbtn ${k}" data-kind="${k}">${ic} ${t}</button>`).join("") + `</div>` +
+      `<div class="past">押し忘れたとき：<input type="time" id="hangtime" step="300">に干した（空欄＝いま）</div>`
+      : `<button disabled>前日20時から押せます</button>`) +
     hangNote +
     // 干したボタンを押したときに自動で予約する通知の種類（この端末に保存）
     `<div class="auto">干したら自動で：<select id="autonotify">` +
@@ -388,8 +392,20 @@ function render(){
   </div>`;
   document.querySelectorAll(".hangbtn").forEach(hb => hb.onclick = () => {
     const k = hb.dataset.kind, kn = {out:"外干し", in:"部屋干し"}[k];
-    if (mode==="hung" && !confirm(`${hm(st)}に${KN}した記録を、いまの時刻の${kn}に変えますか？`)) return;
-    HUNG = {t: Date.now(), kind: k}; try { localStorage.setItem("sentaku-hung", JSON.stringify(HUNG)); } catch(e){}
+    // 時刻が入っていればその時刻（未来になるなら前日の夜とみなす）、空欄ならいま
+    let t = Date.now();
+    const tv = document.getElementById("hangtime")?.value;
+    if (tv) {
+      const [h, m] = tv.split(":").map(Number), d0 = new Date(date+"T00:00:00");
+      d0.setHours(h, m);
+      if (d0.getTime() > Date.now()) d0.setDate(d0.getDate() - 1);
+      const r = rel(d0.getTime());
+      if (d0.getTime() > Date.now() || r < -4 || r >= 18) { alert("干した時刻は、前日20時〜当日18時の、いまより前の時刻を入れてください"); return; }
+      t = d0.getTime();
+    } else if (!canHang) { alert("今日の干す時間は終わりました。押し忘れたときは、干した時刻を入れてから押してください"); return; }
+    const whenTxt = tv ? `${hm(rel(t))}の` : "いまの時刻の";
+    if (mode==="hung" && !confirm(`${hm(st)}に${KN}した記録を、${whenTxt}${kn}に変えますか？`)) return;
+    HUNG = {t, kind: k}; try { localStorage.setItem("sentaku-hung", JSON.stringify(HUNG)); } catch(e){}
     render();
     // 計算し直した時刻で、選んでおいた通知をそのまま予約する（PCはメール、スマホはカレンダー）。
     // 押したその場で呼ぶので、iPhoneでも「カレンダーに追加」画面が開ける
